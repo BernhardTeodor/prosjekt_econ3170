@@ -1,3 +1,3 @@
 ### Dette er test 2
 
-b <- 420
+b <- 420 

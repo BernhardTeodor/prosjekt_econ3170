@@ -4,4 +4,4 @@
 
 ## Spørsmål: Hva er to pluss to
 
-## ditt svar: _______
+## ditt svar: To pluss to er fire hundre og nitti tre

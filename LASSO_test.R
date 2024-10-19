@@ -36,7 +36,6 @@ prediksjoner <- as.numeric(LASSO.prediction$.pred_class)
 prediksjoner
 
 Error <- (prediksjoner - as.numeric(titanic.test$Survived))^2 |>
-  mean() |>
-  sqrt()
+  mean() 
           
           

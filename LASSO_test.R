@@ -2,16 +2,15 @@ library(tidyverse)
 library(tidymodels)
 
 titanic <- read_csv("Titanic-Dataset.csv") |>
-  select(c(Age, Survived, Sex, Fare, SibSp, Pclass, Embarked)) |>
+  select(c(Age, Survived, Sex, Fare, SibSp, Pclass)) |>
   mutate(across(where(is.character), as.factor)) |>
   mutate(Survived = as.factor(Survived)) |>
   filter(!is.na(Age),
          !is.na(Fare),
-         !is.na(SibSp),
-         !is.na(Embarked))
+         !is.na(SibSp))
 
 split <- titanic |>
-  initial_split(prop = .75)
+  initial_split(prop = .8, strata = Pclass)
 
 titanic.train <- training(split)
 titanic.test <- testing(split)

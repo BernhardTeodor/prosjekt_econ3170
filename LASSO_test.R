@@ -10,7 +10,7 @@ titanic <- read_csv("Titanic-Dataset.csv") |>
          !is.na(SibSp))
 
 split <- titanic |>
-  initial_split(prop = .8, strata = Pclass)
+  initial_split(prop = .8, strata = Survived)
 
 titanic.train <- training(split)
 titanic.test <- testing(split)

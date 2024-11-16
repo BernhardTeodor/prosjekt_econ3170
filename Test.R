@@ -91,7 +91,7 @@ select(c(Age, Survived, Sex, Fare, SibSp, Pclass)) |>
 
 #Deler inn i trening og test
 
-set.seed(1881)
+set.seed(3170)
 split <- titanic |>
   initial_split(prop = .8, strata = Survived)
 
@@ -127,7 +127,7 @@ wf <- workflow()|>
 ###Definerer en grid for å tilpasse parametere
 LASSO_grid <- grid_regular(
  penalty(range = c(-4,1)),
- levels = 50
+ levels = 200
 )
 
 #Deler dataen inn i 10 mapper for kryssvalidering

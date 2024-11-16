@@ -18,7 +18,7 @@ library(tidyverse)
 ## Data
 
 ```{r echo = T, results = 'hide'}
-titanic <- read_csv("train.csv")
+titanic <- read_csv("Titanic-Dataset.csv")
 ```
 
 Vi benytter oss av data fra kaggel: <https://www.kaggle.com/competitions/titanic/data>.

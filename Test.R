@@ -126,7 +126,7 @@ wf <- workflow()|>
 
 ###Definerer en grid for å tilpasse parametere
 LASSO_grid <- grid_regular(
- penalty(range = c(-4,-1)),
+ penalty(range = c(-4,1)),
  levels = 50
 )
 

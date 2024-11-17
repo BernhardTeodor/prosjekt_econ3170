@@ -146,11 +146,11 @@ tune_results <- tune_grid(
 ##Finner de optimale parameter resultatene
 tune_results |>
   collect_metrics() |> 
-  filter(.metric == "accuracy") |>
+  filter(.metric == "roc_auc") |>
   arrange(mean)
 
 best_params <- tune_results |>
-  select_best(metric = "accuracy")
+  select_best(metric = "roc_auc")
 
 ###Bruker parameterne fra tilpassingen
 fn.LASSO_wf <- wf |>

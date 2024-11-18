@@ -8,22 +8,22 @@ editor: visual
 
 ## Pakker
 
-I prosjetet kommer vi hovedsaklig til å benytte oss av to pakker: tidyverse og tidymodels. Begge pakkene er samlinger av mange ulike pakker. Tidyverse skal vi hovedsaklig bruke til å manipulere data og visualisering. Tidymodels skal vi bruke til maskinlæring.
+I prosjektet kommer vi hovedsakelig til å benytte oss av to pakker: tidyverse og tidymodels. Begge pakkene er samlinger av mange ulike pakker. Vi skal bruke Tidyverse til å manipulere data og visualisering. Tidymodels skal vi bruke til maskinlæring.
 
 ```{r echo = T, results = 'hide'}
 library(tidyverse)
-library(tidyverse)
+library(tidymodels)
 ```
 
 ## Data
 
 ```{r echo = T, results = 'hide'}
-titanic <- read_csv("train.csv")
+titanic <- read_csv("Titanic-Dataset.csv")
 ```
 
 Vi benytter oss av data fra kaggel: <https://www.kaggle.com/competitions/titanic/data>.
 
-Datasettet bester av 12 kolonner. Her kommer en liten oversikt over hva de betyr:
+Datasettet består av 12 kolonner. Her kommer en liten oversikt over hva de betyr:
 
 -   Survival: Om vedkommende overlevde: 1 = Ja, 0 = Nei.
 
@@ -37,7 +37,7 @@ Datasettet bester av 12 kolonner. Her kommer en liten oversikt over hva de betyr
 
 -   Parch: Antall foreldre/ barn på Titanic
 
--   Ticket: Bilettnummer
+-   Ticket: Billettnummer
 
 -   Fare: Pris
 
@@ -47,25 +47,25 @@ Datasettet bester av 12 kolonner. Her kommer en liten oversikt over hva de betyr
 
 -   Name
 
--   PassengerId:
+-   PassengerId: Satt inn av Kaggle for å få oversikt over passasjerer.
 
 ```{r}
 head(titanic)
 ```
 
-Pclass og Fare virker veldig spennede, de fleste har nok sett filmen og der blir tydligfremstilt at hvis du er i første klasse har du en større sjanse for å overleve. Samme med Fare, hvis du har betalt mye for biletten indikerer dette en høyere klasse som kan hinte til en større sannsynlighet for å overleve.
+Pclass og Fare er variabler som virker spennende. Hvis man har sett Titanic-filmen, blir det tydelig framstilt at de som er i første klasse hadde en stor fordel da det kom til evakuering. Det er nok trolig at variabelen Fare har en sterk korrelasjon med Pclass. Summen du betalte for billetten din reflekterer nok hvilken klasse du er i. Dette kan igjen si noe om sannsynligheten for å overleve.
 
-Cabin og Ticket er nok også verdier som har en sterk tilknytting med hvilken klasse du er i og hvor mye du betalte. Likevel blir det vannskelig å skulle si om noen overlever p.ga hvilket bilettnummer man har. Ved første øyekast ser det ut som at lugar variablen har mange manglende verdier. Hva den faktiske lugaren var er nok kanskje ikke altfor interessant, men hvilket dekk den ligger på kunne vært av stor interesse. Ettersom at dekket har mye å si for om du klarte å komme deg ut i tide.
+Cabin og Ticket er variable, det blir vanskelig å si noe. På mange måter reflekterer de nok Pclass og Fare. Det er imidlertid vanskelig å konkludere om overlevelse, basert på billettnummer. Den spesifikke lugaren er kanskje ikke så interessant, men hvilket dekk den ligger på kan være relevant. På den andre siden kan man si at dette kommer tydligere fram i Pclass.
 
-Alder og kjønn er igjen ganske interessante variabler. Vi kjenner jo alle til "Kvinner og barn først". Her vil det nok være interessant å manipulere dataen for å fremmheve om vedkommende er et barn eller ikke. En annen dimensjon kan også være om personen blir ansett som gammel eller ikke, ettersom at disse gruppen antaglivis får prioritet under evakuering av skipet. Samt også kombinere disse verdiene med hvilken klasse de var i.
+Alder og kjønn er viktige variabler, spesielt med tanke på uttrykket "Kvinner og barn først" ved evakuering. Her kan det også være en mulighet å manipulere dataen, for å fremheve at noen f.eks. er barn eller gamle.
 
-Navn er litt "tricky". Man kan gjerne tenke seg at naven til noen ikke er av stor betydning når det kommer til overlevelse som forsåvidt kan stemme. Likevel inkluderer navene tittler so f.eks mrs og master, og dette kan igjen være interessant.
+Variabelen navn er litt "tricky". Hva noen heter burde strengt tatt ikke ha så mye å si for overlevelsessjansene. Likevel inkluderer navnene titler som f.eks. mrs og master, og dette kan igjen være interessant. Samtidig har vi jo også variabler som kjønn og alder. Hvor stor betydning navnet har, er nok litt vanskelig å si.
 
-Embarked er igjen variabel det blir litt vannskelig å si noe om, ettersom at det er kun tre forskjellige steder, som egentlig ikke burde ha særlig stor betydning. På den andre siden kan det være en korrelasjon mellom hvor man gikk om bord og hvilken klassen man er i.
+Embarked er en variabel det er litt vanskelig å si noe om. Det er kun tre forskjellige tre forskjellige steder. Det burde strengt tatt ikke ha noe særlig stor betydning for at man overlever eller ikke. På den andre siden, kan det være en sammenheng mellom hvor man steg ombord og hvilken klasse man er i.
 
-Parch og Sibsp er en ganske interessante variabler. Kan det være noe sammenheng mellom hvor stor familie du har ombord og overlevelse.
+Parch og Sibsp er to variabler som forteller mye av det samme, men likevel interessante. Vil det ha noe betydning for egen overlevelse hvis man har mye familie ombord? Det kan være en idé og f.eks. slå variablene sammen til en gruppe. På samme måte som at størrelsen på familien kan være interessant kan det også være spennende å se om det vil ha noe betydning om man er alene. 
 
-PassengerId vikrer ikke veldig relevant, den virker litt mer som en variabel for å kunne referere til passasjer og den har nok mest sannsynlig ikke noe å gjøre med overlevelsen.
+PassengerId er ikke relevant, den en variabel for å kunne referere til passasjerer.
 
 Inspirasjon: <https://www.kaggle.com/code/allohvk/titanic-advanced-eda?scriptVersionId=77739368>
 
@@ -210,13 +210,8 @@ Nå som vi har bearbeidet datarammen har vi lyst til å utforske dataen litt mer
 ```{r}
 titanic |> 
   group_by(Survived) |> 
-  summarise(Antall = n())
-
-titanic |> 
-  ggplot(aes(x = Survived, fill = as.factor(Survived))) +
-  geom_bar() +
-  ylab("Antall") +
-  ggtitle("Fordeling av overlevde")
+  summarise(Antall = n(), 
+            Andel = round(n()/891,2))
 ```
 
 I følge dataen vi har er det kun 342 person som overlevde, mens det var 549 som ikke gjorde det. Har dette noe å si for f.eks. Pclass.
@@ -279,6 +274,8 @@ titanic |>
   xlab("Aldersgrupper")+
   ylab("Andel overlevd")+
   facet_wrap(vars(Sex, Pclass))
+
+
 ```
 
 ```{r}
@@ -380,7 +377,7 @@ Ettersom at fordlingen over hvor mye hver person betalte er høyre vridd har vi 
 ```{r}
 
 titanic |> 
-  group_by(Embarked, Pclass) |> 
+  group_by(Embarked) |> 
   summarise(Antall = n())
 
 titanic |> 
@@ -392,10 +389,7 @@ titanic |>
 
 titanic |> 
   group_by(Embarked) |> 
-  summarise(andel_overlevde = sum(Survived)/ n()) 
-
-
-|> 
+  summarise(andel_overlevde = sum(Survived)/ n()) |> 
   ggplot(aes(x = andel_overlevde, fill = Embarked )) +
   geom_bar()
 ```
@@ -404,16 +398,106 @@ Plotter for hver enkelt pclass, ettersom at en stor andel av de som kommer fra Q
 
 Oppsumer hva vi har fått ut fra plottene, hva slags sammenhenger har vi lært???? Kan plottene bli bedre.
 
-## Maskinlæring
+## Nye variabler
 
 ```{r}
 
+titanic <- titanic |> 
+  mutate(Family_size = Parch + SibSp + 1) |> 
+  mutate(alone = ifelse(Family_size == 1, 1, 0)) |> 
+  select(-Parch, -SibSp, -Ticket, -PassengerId, -Name) |> 
+  mutate(Pclass = as.factor(Pclass),
+         alone = as.factor(alone),
+         Survived = as.factor(Survived))
+
+```
+
+Skriv litt her,
+
+## Maskinlæring
+
+```{r}
 set.seed(3170)
 split <- initial_split(titanic)
 titanic_train <- training(split)
 titanic_split <- testing(split)
 
 
+titanic_recipe <- 
+  recipe(Survived ~ ., data = titanic_train) |>
+  step_dummy(Sex, Embarked, alone, Pclass) |> 
+  step_normalize(Age, Fare)
+
+
+lasso_model <- 
+  logistic_reg(penalty = tune(), mixture = 1) |> 
+  set_engine("glmnet") |> 
+  set_mode("classification")
+
+
+wflow_lasso <- 
+  workflow() |> 
+  add_recipe(titanic_recipe) |> 
+  add_model(lasso_model)
+
+
+penalty_grid <- grid_regular(penalty(range = c(-4, -1)), levels = 50)
+
+folds <- vfold_cv(titanic_train, 10, strata = Survived)
+
+
+lasso_tune <- 
+  wflow_lasso |> 
+  tune_grid(resamples = folds, grid = penalty_grid)
+
+beste_lamda <- select_best(lasso_tune, metric = "roc_auc")
+
+lasso_fit <- finalize_workflow(wflow_lasso, beste_lamda) |> 
+  fit(data = titanic_train)
+```
+
+Nå er modellen fitta.
+
+Accuarcy
+
+```{r}
+
+predict(lasso_fit, titanic_test) |> 
+  bind_cols(titanic_test) |> 
+  accuracy(truth = Survived, estimate = .pred_class)
+```
+
+conf_mat:
+
+```{r}
+
+
+predict(lasso_fit, titanic_test) |> 
+  bind_cols(titanic_test) |> 
+  conf_mat(truth = Survived, estimate = .pred_class)
+
+
+```
+
+dkw'
+
+Roc_curve:
+
+```{r}
+
+predict(lasso_fit, titanic_test, type = "prob") |> 
+  bind_cols(titanic_test) |> 
+  roc_curve(Survived, .pred_0) |> 
+  autoplot()
+```
+
+Hva modellen syntes var viktig:
+
+```{r}
+
+lasso_fit |> 
+  extract_fit_parsnip() |> 
+  vip::vip()
 ```
 
 Neste:

@@ -66,7 +66,7 @@ titanic <- titanic |>
 titanic <- titanic |> 
   mutate(family_size = SibSp + Parch + 1,
          alone = ifelse(family_size == 1, 1, 0))
-
+tit2 <- titanic
 
 titanic <- titanic |> 
   mutate(Pclass = as.factor(Pclass),
@@ -121,20 +121,10 @@ lasso_tune <-
 beste_lamda <- select_best(lasso_tune, metric = "roc_auc")
 
 
+
+
 lasso_fit <- finalize_workflow(wflow_lasso, beste_lamda) |> 
   fit(data = titanic_train)
-
-
-
-### ny
-
-final_lasso <- 
-  finalize_workflow(
-    add_model(wflow_lasso, lasso_model),
-    beste_lamda
-  )
-
-
 
 
 ###########################################
@@ -152,11 +142,9 @@ predict(lasso_fit, titanic_test) |>
   bind_cols(titanic_test) |> 
   accuracy(truth = Survived, estimate = .pred_class)
 
-
 predict(lasso_fit, titanic_test) |> 
   bind_cols(titanic_test) |> 
-  conf_mat(truth = Survived, estimate = .pred_class) |> 
-  autoplot()
+  conf_mat(truth = Survived, estimate = .pred_class)
 
 
 predict(lasso_fit, titanic_test, type = "prob") |>
@@ -166,11 +154,63 @@ predict(lasso_fit, titanic_test, type = "prob") |>
   View()
 
 
+
+predict(lasso_fit, titanic_test, type = "prob") |>
+  bind_cols(titanic_test) |> 
+  roc_curve(Survived,.pred_0) |> 
+  autoplot()
+
+
 lasso_fit |> 
   extract_fit_parsnip() |> 
   vip::vip()
 
-
-
 .########################################################
+
+
+
+
+tit2 |> 
+  group_by(family_size) |> 
+  summarise(andel = sum(Survived)/n()) |> 
+  ggplot(aes(x = family_size, y = andel)) +
+  geom_col()
+
+
+
+tit2 |> 
+  group_by(alone, Pclass, Sex) |> 
+  summarise(andel = sum(Survived)/n()) |> 
+  ggplot(aes(x = alone, y = andel)) +
+  geom_col() +
+  facet_wrap(vars(Pclass, Sex))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 

@@ -52,13 +52,13 @@ titanic <- titanic |> select(-Name)
 #Deler datasettetn inn i trenings- og testsett
 set.seed(3170)
 titanic.split <- titanic |> 
-  initial_split(prop = .8)
+  initial_split(prop = .8, strata = Survived)
 
 titanic.train <- training(titanic.split)
 titanic.test <- testing(titanic.split)
 
 #Deler treningsettet inn i mapper til kryssvalidering
-cv <- vfold_cv(titanic.train, v = 10)
+cv <- vfold_cv(titanic.train, v = 10, strata = Survived)
 
 #Lager en recipe for å forberede dataene
 rec <- recipe(Survived ~ ., data = titanic.train) |>

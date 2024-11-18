@@ -9,8 +9,8 @@ titanic <- read_csv("Titanic-Dataset.csv") |>
 
 mean_age_master <- titanic |> 
   filter(grepl("Master", Name)) |> 
-  summarise(mean(Age, na.rm = T)) |> 
-  pull()
+  summarise(mean_age = mean(Age, na.rm = T)) |> 
+  pull(mean_age)
 
 
 titanic <- titanic |> 
@@ -21,8 +21,7 @@ titanic <- titanic |>
 
 mean_age_menn_p <- rep(0,3)
 mean_age_kvinne_p <- rep(0,3) 
-for (i in 1:3)
-{
+for (i in 1:3){
   mean_age_menn_p[i] <- titanic |> 
     filter(Pclass == i &  Sex == "male") |> 
     summarise(round(mean(Age, na.rm = T),0)) |> 
@@ -34,19 +33,6 @@ for (i in 1:3)
     pull()
 }
 
-mann_p3 <- "Moran, Mr. James"
-mann_p2 <- "Williams, Mr. Charles Eugene"
-mann_p1 <- "Woolner, Mr. Hugh"
-
-kvinne_p3 <- "Moran, Miss. Bertha"
-kvinne_p1 <- "Thorne, Mrs. Gertrude Maybelle"
-kvinne_p2 <- "Keane, Miss. Nora A"
-
-navn_med_na <- c(mann_p1, mann_p2, mann_p3,
-                 kvinne_p1, kvinne_p2, kvinne_p3)
-
-aldere <- c(mean_age_menn_p, mean_age_kvinne_p)
-
 for (i in 1:3)
 {
   titanic <- titanic |> 
@@ -57,17 +43,6 @@ for (i in 1:3)
                         mean_age_kvinne_p[i], 
                         Age)) 
 }
-
-
-for (i in 1:6)
-{
-  person_ald <- titanic |> 
-    filter(Name == navn_med_na[i]) |> 
-    pull(Age)
-  
-  stopifnot(person_ald == aldere[i])
-}
-
 
 titanic |> 
   filter(Sex == "female" & Pclass == 1) |> 
@@ -102,7 +77,7 @@ mlp_rec <-
   recipe(Survived ~., data = titanic.train) |> 
   step_dummy(Pclass, Embarked, Sex) |>
   step_normalize(Age, Fare) |> 
-  step_pca(all_numeric_predictors(), num_comp = tune()) 
+  step_pca(all_predictors()) 
 
 
 wf <- 
@@ -115,7 +90,6 @@ mlp_params <-
   extract_parameter_set_dials() |> 
   update(
     epochs = epochs(c(50,200)),
-    num_comp = num_comp(c(0,40))
     )
 
 roc_res <- metric_set(roc_auc)

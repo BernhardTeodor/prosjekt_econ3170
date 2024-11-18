@@ -1,14 +1,55 @@
 library(tidyverse)
 library(tidymodels)
 
-titanic <- read_csv("Titanic-Dataset.csv") 
-titanic <- titanic[,-1]
-titanic <- titanic |> 
-  select(-c(Cabin, Ticket, Name)) |>
+#Laste inn datasettet, og fjerne og manipulere kolonner
+titanic <- read_csv("Titanic-Dataset.csv") |> 
+  select(-c(PassengerId, Cabin, Ticket)) |>
   filter(!is.na(Embarked)) |> 
   mutate(Pclass = as.factor(Pclass),
          Survived = as.factor(Survived))
 
+#Lager behandling av NAs
+master.median <- list()
+mr.median <- list()
+mrs.median <- list()
+miss.median <- list()
+
+for (i in 1:3){
+  for (j in c("Master", "Mr.", "Mrs.", "Miss")) {
+    if (j == "Master"){
+      master.median[[i]] <- titanic |> 
+        filter(grepl("Master.", Name, fixed = TRUE), Pclass == i) |> 
+        summarise(median_age = median(Age, na.rm = TRUE)) |> 
+        pull(median_age)
+    } else if(j == "Mr."){
+      mr.median[[i]] <- titanic |> 
+        filter(grepl("Mr.", Name, fixed = TRUE), Pclass == i) |> 
+        summarise(median_age = median(Age, na.rm = TRUE)) |> 
+        pull(median_age)
+    } else if (j == "Mrs.") {
+      mrs.median[[i]] <- titanic |> 
+        filter(grepl("Mrs.", Name, fixed = TRUE), Pclass == i) |> 
+        summarise(median_age = median(Age, na.rm = TRUE)) |> 
+        pull(median_age)
+    } else if(j == "Miss") {
+      miss.median[[i]] <- titanic |> 
+        filter(grepl("Miss.", Name, fixed = TRUE), Pclass == i) |> 
+        summarise(median_age = median(Age, na.rm = TRUE)) |> 
+        pull(median_age)
+    }
+  }
+}
+
+for (i in 1:3){
+  titanic <- titanic |> 
+    mutate(Age = ifelse(grepl("Mr.", Name, fixed = T) & Pclass == i & is.na(Age), mr.median[[i]], Age)) |> 
+    mutate(Age = ifelse(grepl("Miss", Name, fixed = T) & Pclass == i & is.na(Age), miss.median[[i]], Age)) |> 
+    mutate(Age = ifelse(grepl("Mrs.", Name, fixed = T) & Pclass == i & is.na(Age), mrs.median[[i]], Age)) |> 
+    mutate(Age = ifelse(grepl("Master", Name, fixed = T) & Pclass == i & is.na(Age), master.median[[i]], Age))
+}
+
+titanic <- titanic |> select(-Name)
+#Deler datasettetn inn i trenings- og testsett
 set.seed(3170)
 titanic.split <- titanic |> 
   initial_split(prop = .8)
@@ -16,11 +57,16 @@ titanic.split <- titanic |>
 titanic.train <- training(titanic.split)
 titanic.test <- testing(titanic.split)
 
-cv <- vfold_cv(titanic.train)
+#Deler treningsettet inn i mapper til kryssvalidering
+cv <- vfold_cv(titanic.train, v = 10)
 
+#Lager en recipe for å forberede dataene
 rec <- recipe(Survived ~ ., data = titanic.train) |>
-  step_impute_median(Age) |>
-  step_dummy(Embarked, Pclass, Sex) 
+  step_impute_median(Age) |> 
+  step_dummy(Embarked, Pclass, Sex)  |>
+  step_normalize(Age, Fare, Parch) #|> 
+  #step_pca(all_predictors(), num_comp = 6)
+
 
 mlp.model <- mlp(hidden_units = tune(), penalty = tune(), epochs = tune()) |> 
   set_engine("nnet") |> 
@@ -61,3 +107,11 @@ mlp_pred <- fn.mlp_fit |>
 Error <- (as.numeric(mlp_pred$.pred_class)-as.numeric(titanic.test$Survived))^2 |> 
   mean()
 Error
+
+
+
+rec |> 
+  prep() |>
+  bake(new_data = NULL) |> 
+  View()
+

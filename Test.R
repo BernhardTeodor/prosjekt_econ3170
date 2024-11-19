@@ -1,113 +1,61 @@
 library(tidyverse)
 library(tidymodels)
+library(parsnip)
 
+titanic <- read_csv("Titanic-Dataset.csv") |> 
+  mutate(Pclass = as.factor(Pclass),
+         Survived = as.factor(Survived))
 
-###Laste inn datasett
-titanic <- read_csv("Titanic-Dataset.csv")
+#Lager behandling av NAs
+master.median <- list()
+mr.median <- list()
+mrs.median <- list()
+miss.median <- list()
 
-titanic <- titanic |> 
-  select(-Cabin)
-
-mean_age_master <- titanic |> 
-  filter(grepl("Master", Name)) |> 
-  summarise(mean(Age, na.rm = T)) |> 
-  pull()
-
-
-titanic <- titanic |> 
-  mutate(Age = ifelse(is.na(Age) & (grepl("Master", Name)), 
-                      yes = round(mean_age_master,0), 
-                      no = Age))
-
-
-mean_age_menn_p <- rep(0,3)
-mean_age_kvinne_p <- rep(0,3) 
-for (i in 1:3)
-{
-  mean_age_menn_p[i] <- titanic |> 
-    filter(Pclass == i &  Sex == "male") |> 
-    summarise(round(mean(Age, na.rm = T),0)) |> 
-    pull()
-  
-  mean_age_kvinne_p[i] <- titanic|> 
-    filter(Pclass == i &  Sex == "female") |> 
-    summarise(round(mean(Age, na.rm = T),0)) |> 
-    pull()
+for (i in 1:3){
+  for (j in c("Master", "Mr.", "Mrs.", "Miss")) {
+    if (j == "Master"){
+      master.median[[i]] <- titanic |> 
+        filter(grepl("Master.", Name, fixed = TRUE), Pclass == i) |> 
+        summarise(median_age = median(Age, na.rm = TRUE)) |> 
+        pull(median_age)
+    } else if(j == "Mr."){
+      mr.median[[i]] <- titanic |> 
+        filter(grepl("Mr.", Name, fixed = TRUE), Pclass == i) |> 
+        summarise(median_age = median(Age, na.rm = TRUE)) |> 
+        pull(median_age)
+    } else if (j == "Mrs.") {
+      mrs.median[[i]] <- titanic |> 
+        filter(grepl("Mrs.", Name, fixed = TRUE), Pclass == i) |> 
+        summarise(median_age = median(Age, na.rm = TRUE)) |> 
+        pull(median_age)
+    } else if(j == "Miss") {
+      miss.median[[i]] <- titanic |> 
+        filter(grepl("Miss.", Name, fixed = TRUE), Pclass == i) |> 
+        summarise(median_age = median(Age, na.rm = TRUE)) |> 
+        pull(median_age)
+    }
+  }
 }
 
-mann_p3 <- "Moran, Mr. James"
-mann_p2 <- "Williams, Mr. Charles Eugene"
-mann_p1 <- "Woolner, Mr. Hugh"
-
-kvinne_p3 <- "Moran, Miss. Bertha"
-kvinne_p1 <- "Thorne, Mrs. Gertrude Maybelle"
-kvinne_p2 <- "Keane, Miss. Nora A"
-
-navn_med_na <- c(mann_p1, mann_p2, mann_p3,
-                 kvinne_p1, kvinne_p2, kvinne_p3)
-
-aldere <- c(mean_age_menn_p, mean_age_kvinne_p)
-
-for (i in 1:3)
-{
+for (i in 1:3){
   titanic <- titanic |> 
-    mutate(Age = ifelse(is.na(Age) & Sex == "male" & Pclass == i, 
-                        mean_age_menn_p[i], 
-                        Age)) |> 
-    mutate(Age = ifelse(is.na(Age) & Sex == "female" & Pclass == i, 
-                        mean_age_kvinne_p[i], 
-                        Age)) 
+    mutate(Age = ifelse(grepl("Mr.", Name, fixed = T) & Pclass == i & is.na(Age), mr.median[[i]], Age)) |> 
+    mutate(Age = ifelse(grepl("Miss", Name, fixed = T) & Pclass == i & is.na(Age), miss.median[[i]], Age)) |> 
+    mutate(Age = ifelse(grepl("Mrs.", Name, fixed = T) & Pclass == i & is.na(Age), mrs.median[[i]], Age)) |> 
+    mutate(Age = ifelse(grepl("Master", Name, fixed = T) & Pclass == i & is.na(Age), master.median[[i]], Age))
 }
 
-
-for (i in 1:6)
-{
-  person_ald <- titanic |> 
-    filter(Name == navn_med_na[i]) |> 
-    pull(Age)
-  
-  stopifnot(person_ald == aldere[i])
-}
-
-
-titanic |> 
-  filter(Sex == "female" & Pclass == 1) |> 
-  group_by(Embarked, Pclass) |>
-  summarise(mean_survived = mean(Survived), antall = n())
-
-  
-tilfeldig_embarked <- sample(c("C", "S"), size = 1)
 titanic <- titanic |> 
-    mutate(Embarked = ifelse(is.na(Embarked),
-                             yes = tilfeldig_embarked,
-                             no = Embarked))
+  mutate(is.minor = ifelse(Age < 18, 1, 0),
+         fam.size = SibSp+Parch,
+         is.alone = ifelse(fam.size == 0, 1, 0)) |> 
+  add_count(Ticket, name = "pers.pr.ticket")
 
 titanic <- titanic |> 
-select(c(Age, Survived, Sex, Fare, SibSp, Pclass)) |>
-  mutate(across(where(is.character), as.factor)) |>
-  mutate(Survived = as.factor(Survived),
-         Pclass = as.factor(Pclass)) 
+  select(-c(Name, PassengerId, Cabin, Ticket)) |> 
+  filter(!is.na(Embarked))
 
-
-#Deler inn i trening og test
-
-set.seed(3170)
-split <- titanic |>
-  initial_split(prop = .8, strata = Survived)
-
-titanic.train <- training(split)
-titanic.test <- testing(split)
-
-
-titanic.rec <- recipe(Survived~., data = titanic.train) |>
-  step_dummy(Pclass, Sex) |> 
-  step_normalize(Age, Fare)
-
-
-titanic.rec |> 
-  prep() |>
-  bake(new_data = NULL) |> 
-  View()
 
 
 ### Definerer motor; LASSO model
@@ -117,28 +65,29 @@ LASSO_model <- logistic_reg()|>
   set_engine("glmnet") |>
   set_mode("classification")
 
+rec <- recipe(Survived ~ ., data = titanic.train) |>
+  step_impute_mean(all_numeric_predictors()) |> 
+  step_dummy(Embarked, Pclass, Sex)  |>
+  step_normalize(Age, Fare, Parch)
 
 ##Lager en workflow
 wf <- workflow()|>
-  add_recipe(titanic.rec) |>
+  add_recipe(rec) |>
   add_model(LASSO_model)
 
 
 ###Definerer en grid for å tilpasse parametere
-LASSO_grid <- grid_regular(
- penalty(range = c(-4,1)),
- levels = 200
-)
+LASSO_params <- wf |> extract_parameter_set_dials(wf)
 
 #Deler dataen inn i 10 mapper for kryssvalidering
-cv <- vfold_cv(titanic.train, v = 5, strata = Survived)
+cv <- vfold_cv(titanic.train, v = 10, strata = Survived)
 
 
-#Tilpasser parapmeterene ved hjelp av kryssvalidering
+#Tilpasser parameterene ved hjelp av kryssvalidering
 tune_results <- tune_grid(
   wf,
   resamples = cv,
-  grid = LASSO_grid,
+  grid = LASSO_params |> grid_random(size = 200) ,
   control = control_grid(save_pred = TRUE)
 )
 
@@ -171,3 +120,7 @@ Error <- (as.numeric(pred$.pred_class)-as.numeric(titanic.test$Survived))^2 |>
   mean()
 
 Error
+
+
+
+

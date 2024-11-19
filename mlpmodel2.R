@@ -3,8 +3,6 @@ library(tidymodels)
 
 #Laste inn datasettet, og fjerne og manipulere kolonner
 titanic <- read_csv("Titanic-Dataset.csv") |> 
-  select(-c(PassengerId, Cabin, Ticket)) |>
-  filter(!is.na(Embarked)) |> 
   mutate(Pclass = as.factor(Pclass),
          Survived = as.factor(Survived))
 
@@ -48,8 +46,17 @@ for (i in 1:3){
     mutate(Age = ifelse(grepl("Master", Name, fixed = T) & Pclass == i & is.na(Age), master.median[[i]], Age))
 }
 
-titanic <- titanic |> select(-Name)
-#Deler datasettetn inn i trenings- og testsett
+titanic <- titanic |> 
+  mutate(is.minor = ifelse(Age < 18, 1, 0),
+         fam.size = SibSp+Parch,
+         is.alone = ifelse(fam.size == 0, 1, 0)) |> 
+  add_count(Ticket, name = "pers.pr.ticket")
+
+titanic <- titanic |> 
+  select(-c(Name, PassengerId, Cabin, Ticket)) |> 
+  filter(!is.na(Embarked))
+
+#Deler datasetet inn i trenings- og testsett
 set.seed(3170)
 titanic.split <- titanic |> 
   initial_split(prop = .8, strata = Survived)
@@ -62,10 +69,10 @@ cv <- vfold_cv(titanic.train, v = 10, strata = Survived)
 
 #Lager en recipe for å forberede dataene
 rec <- recipe(Survived ~ ., data = titanic.train) |>
-  step_impute_median(Age) |> 
+  step_impute_mean(all_numeric_predictors()) |> 
   step_dummy(Embarked, Pclass, Sex)  |>
-  step_normalize(Age, Fare, Parch) #|> 
-  #step_pca(all_predictors(), num_comp = 6)
+  step_normalize(Age, Fare, Parch)
+
 
 
 mlp.model <- mlp(hidden_units = tune(), penalty = tune(), epochs = tune()) |> 
@@ -114,4 +121,3 @@ rec |>
   prep() |>
   bake(new_data = NULL) |> 
   View()
-

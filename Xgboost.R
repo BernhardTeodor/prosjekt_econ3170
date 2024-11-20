@@ -3,70 +3,120 @@ library(tidymodels)
 library(xgboost)
 
 ###Laste inn datasett
-titanic <- read_csv("Titanic-Dataset.csv")
+titanic <- read_csv("Titanic-Dataset.csv") |> 
+  mutate(Pclass = as.factor(Pclass),
+         Survived = as.factor(Survived))
+
+master.median <- list()
+mr.median <- list()
+mrs.median <- list()
+miss.median <- list()
+
+for (i in 1:3){
+  for (j in c("Master", "Mr.", "Mrs.", "Miss")) {
+    if (j == "Master"){
+      master.median[[i]] <- titanic |> 
+        filter(grepl("Master.", Name, fixed = TRUE), Pclass == i) |> 
+        summarise(median_age = median(Age, na.rm = TRUE)) |> 
+        pull(median_age)
+    } else if(j == "Mr."){
+      mr.median[[i]] <- titanic |> 
+        filter(grepl("Mr.", Name, fixed = TRUE), Pclass == i) |> 
+        summarise(median_age = median(Age, na.rm = TRUE)) |> 
+        pull(median_age)
+    } else if (j == "Mrs.") {
+      mrs.median[[i]] <- titanic |> 
+        filter(grepl("Mrs.", Name, fixed = TRUE), Pclass == i) |> 
+        summarise(median_age = median(Age, na.rm = TRUE)) |> 
+        pull(median_age)
+    } else if(j == "Miss") {
+      miss.median[[i]] <- titanic |> 
+        filter(grepl("Miss.", Name, fixed = TRUE), Pclass == i) |> 
+        summarise(median_age = median(Age, na.rm = TRUE)) |> 
+        pull(median_age)
+    }
+  }
+}
+
+for (i in 1:3){
+  titanic <- titanic |> 
+    mutate(Age = ifelse(grepl("Mr.", Name, fixed = T) & Pclass == i & is.na(Age), mr.median[[i]], Age)) |> 
+    mutate(Age = ifelse(grepl("Miss", Name, fixed = T) & Pclass == i & is.na(Age), miss.median[[i]], Age)) |> 
+    mutate(Age = ifelse(grepl("Mrs.", Name, fixed = T) & Pclass == i & is.na(Age), mrs.median[[i]], Age)) |> 
+    mutate(Age = ifelse(grepl("Master", Name, fixed = T) & Pclass == i & is.na(Age), master.median[[i]], Age))
+}
 
 titanic <- titanic |> 
-  select(c(Age, Survived, Sex, Fare, SibSp, Pclass)) |>
-  mutate(across(where(is.character), as.factor)) |>
-  mutate(Survived = as.factor(Survived),
-         Pclass = as.factor(Pclass)) 
+  mutate(is.minor = ifelse(Age < 18, 1, 0),
+         fam.size = SibSp+Parch,
+         is.alone = ifelse(fam.size == 0, 1, 0)) |> 
+  add_count(Ticket, name = "pers.pr.ticket")
+
+titanic <- titanic |> 
+  select(-c(Name, PassengerId, Cabin, Ticket)) |> 
+  filter(!is.na(Embarked))
 
 
 set.seed(3170)
 split <- initial_split(titanic, prop = .8, strata = Survived)
 titanic_train <- training(split)
 titanic_test <- testing(split)
+cv <- vfold_cv(titanic_train, v = 10, strata = Survived)
 
 titanic.rec <- recipe(Survived~., data = titanic_train) |>
-  step_dummy(Pclass, Sex) |> 
-  step_normalize(Age, Fare) |>
-  prep()
+  step_impute_mean(Age) |> 
+  step_dummy(Pclass, Sex, Embarked)
 
-data_train <- bake(titanic.rec, new_data = NULL)
-data_test <- bake(titanic.rec, new_data = titanic_test)
+xgboost_model<- boost_tree(
+  trees = 1000,
+  tree_depth = tune(),
+  min_n = tune(),
+  loss_reduction = tune(),
+  sample_size = tune(),
+  learn_rate = tune(),
+  mtry = tune()) |> 
+  set_engine("xgboost") |> 
+  set_mode("classification")
 
-####Fjerner variablen vi ønsker å predikere fra matrisen
-train.matrix <- as.matrix(select(data_train, -Survived))
-test.matrix <- as.matrix(select(data_test, -Survived))
-
-#####Endre til numeriske variabler
-train_label <- as.numeric(pull(data_train, Survived)) - 1
-test_label <- as.numeric(pull(data_test, Survived)) - 1
-
-dtrain <- xgb.DMatrix(data = train.matrix, label= train_label)
-dtest <- xgb.DMatrix(data = test.matrix, label= test_label)
-
-
-model <- xgboost(data = dtrain, 
-                 nround = 2, 
-                 objective = "binary:logistic")
+xgboost_wflow <- workflow() |> 
+  add_recipe(titanic.rec) |> 
+  add_model(xgboost_model)
 
 
-params <- list(
-  booster = "gbtree", 
-  objective = "binary:logistic", 
-  eta = 0.1, 
-  max_depth = 6, 
-  subsample = 0.8,
-  colsample_bytree = 0.8
+grid <- grid_latin_hypercube(
+  tree_depth(),
+  min_n(),
+  loss_reduction(),
+  sample_prop(),
+  learn_rate(),
+  finalize(mtry(), titanic_train),
+  size = 100
 )
 
-watchlist <- list(train = dtrain, eval = dtest)
 
-xgb_model <- xgb.train(
-  params = params, 
-  data = dtrain, 
-  nrounds = 100, 
-  watchlist = watchlist, 
-  early_stopping_rounds = 10, 
-  print_every_n = 10
+xgb_tuned <- tune_grid(
+  xgboost_wflow,
+  resamples = cv, 
+  grid = grid,
+  control = control_grid(save_pred = TRUE),
+  metrics = metric_set(accuracy, roc_auc, brier_class)
 )
 
-pred <- predict(xgb_model, newdata = dtest)
+params <- select_best(xgb_tuned, metric = "brier_class")
 
-### Convert predictions to binary class (0 or 1)
-pred_class <- ifelse(pred > 0.5, 1, 0)
+fn.xgb_wflow <- xgboost_wflow |> 
+  finalize_workflow(params)
 
-error <- (pred_class-(as.numeric(titanic_test$Survived)-1))^2 |> 
+fn.xgb_fit <- fn.xgb_wflow |> 
+  fit(titanic_train)
+
+xgboost_pred <- fn.xgb_fit |> 
+  predict(new_data = titanic_test)
+
+error <- (as.numeric(xgboost_pred$.pred_class)-(as.numeric(titanic_test$Survived))) |> 
+  abs() |> 
   mean()
 error
+
+
+

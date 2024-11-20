@@ -70,9 +70,8 @@ cv <- vfold_cv(titanic.train, v = 10, strata = Survived)
 #Lager en recipe for å forberede dataene
 rec <- recipe(Survived ~ ., data = titanic.train) |>
   step_impute_mean(all_numeric_predictors()) |> 
-  step_dummy(Embarked, Pclass, Sex)  |>
-  step_normalize(Age, Fare, Parch)
-
+  step_dummy(Embarked, Pclass, Sex) |> 
+  step_normalize(Age, Fare, pers.pr.ticket, fam.size, Parch)
 
 
 mlp.model <- mlp(hidden_units = tune(), penalty = tune(), epochs = tune()) |> 
@@ -87,19 +86,26 @@ mlp_params <- extract_parameter_set_dials(mlp_wflow)
 
 print(mlp_params)
 
-roc_res <- metric_set(roc_auc)
+meterics <- metric_set(roc_auc, accuracy, brier_class)
+
+grid <- grid_latin_hypercube(
+  mlp_params,
+  size = 100
+)
+
 
 
 
 mlp_tune <- tune_grid(
   mlp_wflow, 
   resamples = cv, 
-  grid = mlp_params |> grid_random(size=100),
-  metrics = roc_res
+  grid = grid,
+  metrics = meterics,
+  control = control_grid(save_pred = TRUE)
 )
 
 
-logistic_param.reg <- select_best(mlp_tune, metric = "roc_auc") |>
+logistic_param.reg <- select_best(mlp_tune, metric = "brier_class") |>
   select(-.config)
 
 fn.mlp_wflow <- mlp_wflow |> 
@@ -117,7 +123,7 @@ Error
 
 
 
-rec |> 
-  prep() |>
+rec |>
+  prep() |> 
   bake(new_data = NULL) |> 
   View()

@@ -877,7 +877,6 @@ best_param_xg
 
 grid: https://juliasilge.com/blog/xgboost-tune-volleyball/, blir litt vanskelig å plotte
 
-
 ```{r}
 set.seed(3170)
 xg_fit <- finalize_workflow(xg_wflow, best_param_xg) |> 
@@ -887,7 +886,6 @@ predict(xg_fit, titanic_test) |>
   bind_cols(titanic_test) |> 
   accuracy(Survived, .pred_class)
 ```
-
 
 ```{r}
 auc_xg <- 
@@ -925,7 +923,6 @@ xg_fit |>
   ylab("Variabler")
 ```
 
-
 ```{r}
 
 prediksjoner_xg <- predict(xg_fit, titanic_test) |> 
@@ -950,14 +947,12 @@ plot_confusion_matrix(riktigmatrise_xg, "Prediction", "Truth", "n",
 
 ### Sammenligne modeller
 
-
 ```{r}
 
 
 
 
 ```
-
 
 ```{r}
 lasso_roc <- lasso_roc |> 
@@ -1009,8 +1004,6 @@ alle_prediksjoner |>
   accuracy(Survived,.pred_class)
 
 ```
-
-
 
 Litt høyere AUC
 

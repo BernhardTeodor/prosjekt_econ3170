@@ -1,0 +1,11 @@
+---
+title: "Prosjekt-ECON3170"
+format: pdf
+editor: visual
+---
+
+# Titanic katastrofen- ECON 3170
+
+## *Introduksjon*
+
+I denne oppgaven skal vi  - ved hjelp av ulike maksinlæringsmodeller - forsøke å predikere om passasjerer på båten overlevde eller ikke. Datasettet er hentet fra "...", og oppgaven er inspirert av Kaggles maksinlæringskonkurranse. Vi innleder med å inspisere datasettet ved hjelp av plots for å forsøke å se sammenhengen mellom ulike variabler, og andelen overlevende. Videre vil vi forsøke å behandle manglende verdier, og tilpasse datasettet slik at det vil være enkelt å bruke i modellene. Vi vil så tilpasse parametere og hyperparametere for å forsøke å få så presise modeller som mulig. Til slutt vil vi implementere modellene i et dashboard hvor en kan finne overlevelsessansynlighet for en selvvalgt karakter.

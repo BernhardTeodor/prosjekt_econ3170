@@ -120,15 +120,15 @@ fn.LASSO_wf <- wf |>
 
 ###Trener modellen på dataene
 fn.LASSO_model <- fn.LASSO_wf |>
-  fit(data = titanic.train)
+  fit(data = titanic_train)
 
 ###Kjører prediksjonene
 pred <- fn.LASSO_model |>
-  predict(new_data = titanic.test)
+  predict(new_data = titanic_test)
 
 
 ###Finner gjennomsnittlig feilmargin
-Error <- (as.numeric(pred$.pred_class)-as.numeric(titanic.test$Survived))^2 |>
+Error <- (as.numeric(pred$.pred_class)-as.numeric(titanic_test$Survived))^2 |>
   mean()
 
 Error

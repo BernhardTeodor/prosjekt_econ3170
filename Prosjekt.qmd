@@ -1,4 +1,5 @@
 ---
+
 title: "Prosjekt-ECON3170"
 format: pdf
 editor: visual
@@ -9,3 +10,217 @@ editor: visual
 ## *Introduksjon*
 
 I denne oppgaven skal vi  - ved hjelp av ulike maksinlæringsmodeller - forsøke å predikere om passasjerer på båten overlevde eller ikke. Datasettet er hentet fra "...", og oppgaven er inspirert av Kaggles maksinlæringskonkurranse. Vi innleder med å inspisere datasettet ved hjelp av plots for å forsøke å se sammenhengen mellom ulike variabler, og andelen overlevende. Videre vil vi forsøke å behandle manglende verdier, og tilpasse datasettet slik at det vil være enkelt å bruke i modellene. Vi vil så tilpasse parametere og hyperparametere for å forsøke å få så presise modeller som mulig. Til slutt vil vi implementere modellene i et dashboard hvor en kan finne overlevelsessansynlighet for en selvvalgt karakter.
+
+## Pakker
+
+I prosjetet kommer vi hovedsaklig til å benytte oss av to pakker: tidyverse og tidymodels. Begge pakkene er samlinger av mange ulike pakker. Tidyverse skal vi hovedsaklig bruke til å manipulere data og visualisering. Tidymodels skal vi bruke til maskinlæring.
+
+```{r echo = T, results = 'hide'}
+library(tidyverse) 
+library(tidymodels)
+
+```
+
+## Data
+
+```{r echo = T, results = 'hide'}
+titanic <- read_csv("Titanic-Dataset.csv")
+```
+
+Datasettet bester av 12 kolonner. Her kommer en liten oversikt over hva de betyr:
+
+-   Survival: Om vedkommende overlevde: 1 = Ja, 0 = Nei.
+
+-   Pclass: 1, 2 eller 3.klasse.(1 er best)
+
+-   Sex: Kjønn
+
+-   Age: Alder
+
+-   Sibsp: Antall søsken/ ektefeller på Titanic
+
+-   Parch: Antall foreldre/ barn på Titanic
+
+-   Ticket: Bilettnummer
+
+-   Fare: Pris
+
+-   Cabin: Lugarnummer
+
+-   Embarked: Hvor de gikk ombord: C = Cherbourg, Q = Queenstown, S = Southampton.
+
+-   Name: Tittel, og navn
+
+-   PassengerId: Unike IDer til passasjerene
+
+```{r}
+head(titanic)
+```
+
+Pclass og Fare virker veldig spennede, de fleste har nok sett filmen og der blir tydligfremstilt at hvis du er i første klasse har du en større sjanse for å overleve. Samme med Fare, hvis du har betalt mye for biletten indikerer dette en høyere klasse som kan hinte til en større sannsynlighet for å overleve.
+
+Cabin og Ticket er nok også verdier som har en sterk tilknytting med hvilken klasse du er i og hvor mye du betalte. Likevel blir det vannskelig å skulle si om noen overlever p.ga hvilket bilettnummer man har. Ved første øyekast ser det ut som at lugar variablen har mange manglende verdier. Hva den faktiske lugaren var er nok kanskje ikke altfor interessant, men hvilket dekk den ligger på kunne vært av stor interesse. Ettersom at dekket har mye å si for om du klarte å komme deg ut i tide.
+
+Alder og kjønn er igjen ganske interessante variabler. Vi kjenner jo alle til "Kvinner og barn først". Her vil det nok være interessant å manipulere dataen for å fremmheve om vedkommende er et barn eller ikke. En annen dimensjon kan også være om personen blir ansett som gammel eller ikke, ettersom at disse gruppen antaglivis får prioritet under evakuering av skipet. Samt også kombinere disse verdiene med hvilken klasse de var i.
+
+Navn er litt "tricky". Man kan gjerne tenke seg at naven til noen ikke er av stor betydning når det kommer til overlevelse som forsåvidt kan stemme. Likevel inkluderer navene tittler so f.eks mrs og master, og dette kan igjen være interessant.
+
+Embarked er igjen variabel det blir litt vannskelig å si noe om, ettersom at det er kun tre forskjellige steder, som egentlig ikke burde ha særlig stor betydning. På den andre siden kan det være en korrelasjon mellom hvor man gikk om bord og hvilken klassen man er i.
+
+Parch og Sibsp er en ganske interessante variabler. Kan det være noe sammenheng mellom hvor stor familie du har ombord og overlevelse.
+
+PassengerId vikrer ikke veldig relevant, den virker litt mer som en variabel for å kunne referere til passasjer og den har nok mest sannsynlig ikke noe å gjøre med overlevelsen.
+
+Inspirasjon: <https://www.kaggle.com/code/allohvk/titanic-advanced-eda?scriptVersionId=77739368>
+
+## Utforsking av dataen
+
+### Behandling av manglende verdier(NA\`s)
+
+Bruker skim fra pakken skimr for å få en oversikt over dataen:
+
+```{r}
+
+skimr::skim(Titanic)
+
+```
+
+Her får vi vite at det 891 rander og at 5 av de tolv kolonnene er av typen "character". Det som er av mest interesse i outputen er kolonnen med "n_missing". Kolonnen "Cabin" har 687 manglende verdier. Det er rimelig å tenke seg at lugarnummeret ikke har så mye å si for overlevelsen, og at heller "Pclass" er viktigere for analysen. Med så mange manglende verdier blir det også vanskelig å lage nye variabler med hvilket dekk man var på. Da måtte man eventuelt gjort noen antagelser om at første klasse var på dekk A og B, men det blir jo nesten det samme som pclass og derfor ikke hensiktsmessig. Ettersom at datasettet ikker er så stort er det mer hensiktsmessig å fjerne hele kolonnen fremfor å fjerne alle randene med manglende verdier.
+
+```{r, include=FALSE}
+
+titanic <- titanic |> 
+  select(-Cabin)
+```
+
+Alder er også en variabel som mangler 177. Denne kolonnen er litt mer problematisk. Som drøftet ovenfor kan man tenke seg at alder har mye å si for analysen. Datasettet er lite så det blir dumt å fjerne disse radene. En muligheter er å kunne fylle disse verdiene med gjennomsnittsalderen. En annen metode som blir diskutert i denne artikkelen: <https://www.kaggle.com/code/allohvk/titanic-missing-age-imputation-tutorial-advanced>, er f.eks. å se på tittel som "Master" for å indentifisere unge gutter.
+
+```{r}
+master.median <- list()
+mr.median <- list()
+mrs.median <- list()
+miss.median <- list()
+
+for (i in 1:3){
+  for (j in c("Master", "Mr.", "Mrs.", "Miss")) {
+    if (j == "Master"){
+      master.median[[i]] <- titanic |> 
+        filter(grepl("Master.", Name, fixed = TRUE), Pclass == i) |> 
+        summarise(median_age = median(Age, na.rm = TRUE)) |> 
+        pull(median_age)
+    } else if(j == "Mr."){
+      mr.median[[i]] <- titanic |> 
+        filter(grepl("Mr.", Name, fixed = TRUE), Pclass == i) |> 
+        summarise(median_age = median(Age, na.rm = TRUE)) |> 
+        pull(median_age)
+    } else if (j == "Mrs.") {
+      mrs.median[[i]] <- titanic |> 
+        filter(grepl("Mrs.", Name, fixed = TRUE), Pclass == i) |> 
+        summarise(median_age = median(Age, na.rm = TRUE)) |> 
+        pull(median_age)
+    } else if(j == "Miss") {
+      miss.median[[i]] <- titanic |> 
+        filter(grepl("Miss.", Name, fixed = TRUE), Pclass == i) |> 
+        summarise(median_age = median(Age, na.rm = TRUE)) |> 
+        pull(median_age)
+    }
+  }
+}
+
+for (i in 1:3){
+  titanic <- titanic |> 
+    mutate(Age = ifelse(grepl("Mr.", Name, fixed = T) & Pclass == i & is.na(Age), mr.median[[i]], Age)) |> 
+    mutate(Age = ifelse(grepl("Miss", Name, fixed = T) & Pclass == i & is.na(Age), miss.median[[i]], Age)) |> 
+    mutate(Age = ifelse(grepl("Mrs.", Name, fixed = T) & Pclass == i & is.na(Age), mrs.median[[i]], Age)) |> 
+    mutate(Age = ifelse(grepl("Master", Name, fixed = T) & Pclass == i & is.na(Age), master.median[[i]], Age))
+}
+
+titanic |> 
+  filter(is.na(Age))
+
+```
+
+Vi imputerer de manglende veridene ved å ta utgangspunkt i tittel  - Master, Mr. , Mrs. , Miss. - og finner gjennomsnittsalderen for klassen de tilhører, og imputerer dette i datasettet. Vi ser at det fremdeles er en mangelnde verdi, som vi imputerer med gjennomsnittsalderen for klassen og personens tittel.
+
+```{r}
+mean.dr.p1 <- titanic |> 
+  filter(grepl("Dr.", Name, fixed = TRUE) & Pclass == 1) |> 
+  summarise(round(mean(Age, na.rm = TRUE))) |> 
+  pull()
+
+titanic <- titanic |> 
+  mutate(Age = ifelse(is.na(Age), mean.p1, Age))
+
+```
+
+Nå har vi kun 2 manglende verdier for embarked. Det burde nok gå greit å fjerne dem, men vi kan også prøve å utforske dataen før vi gjør det.
+
+```{r}
+titanic |> 
+  filter(is.na(Embarked))
+```
+
+Det er her snakk om to kvinner som begge overlevde og var i første klasse. Datasette er ikke kjempe stort og det ville vært dumt å skulle miste rader med folk som overlevde. Vi kan utforske litt mer.
+
+```{r, warning=FALSE}
+titanic |> 
+  filter(Sex == "female" & Pclass == 1) |> 
+  group_by(Embarked, Pclass) |>
+  summarise(mean_survived = mean(Survived), antall = n())
+```
+
+Det vi kan tolke fra output er at de fleste kvinner som er i førseklasse overlevde, uavhengig av hvor de kom ombord. Derfor tenker vi det er rimelig å fylle de manglende verdiene med tilfeldig trekk mellom "C" og "S", ettersom at de er de verdien som er mest sannsylige.
+
+```{r}
+tilfeldig_embarked <- sample(c("C", "S"), size = 1)
+
+titanic <- titanic |> 
+  mutate(Embarked = ifelse(is.na(Embarked),
+                           yes = tilfeldig_embarked,
+                           no = Embarked))
+```
+
+### Visualisering av data
+
+Nå som vi har bearbeidet datarammen har vi lyst til å utforske dataen litt mer. Dette gjør vi for å få en bedre forståelse for ulike sammenhenger i dataen.
+
+```{r}
+titanic |> 
+  group_by(Survived) |> 
+  summarise(Antall = n())
+
+```
+
+I følge dataen vi har er det kun 342 person som overlevde, mens det var 549 som ikke gjorde det. Har dette noe å si for f.eks. Pclass.
+
+```{r}
+titanic |> 
+  ggplot(aes(x = Survived, fill = as.factor(Survived))) +
+  geom_bar() +
+  ylab("Antall") +
+  facet_wrap(vars(Pclass))
+```
+
+Antallet som overlevde ser ut til å være ganske likt mellom klassene. Det er nok mer interesant å se på ovelevelsen som en andel av antallet.
+
+```{r}
+titanic |> 
+  group_by(Pclass) |> 
+  summarise(Overlevelsesandel = sum(Survived)/n())
+
+```
+
+Her får vi et tydligere bilde over overlevelse og hvilken klasse du er i. Vi ser at andel som overlevde blir betraktlig større desto høyre klasse klasse man er i. Kan kjønn ha noe betydning?
+
+```{r}
+library(tidyverse)
+
+titanic |> 
+  group_by(Pclass,Sex) |> 
+  summarise(Overlevelsesandel = sum(Survived)/n()) |> 
+  ggplot(aes(x = Pclass, y = Overlevelsesandel, fill = Sex)) +
+  geom_col(position = position_dodge())
+
+```
+
+Her ser vi at det er en tydelig sammenheng mellom klasse og kjønn for overlevelse. Det ser ut som at kvinner i første og andre klasse har realtivt stor sannsynlighet for å overleve. Kvinner i tredje klasse ligger på rundt femti prosent. Andelen menn som overlevde er betraktlig lavere i alle klasser samenlignet med kvinner. Andel menn som overlevde i andre og tredje klasse er omtrent halvparten av det den er i første klasse, likevel er det å være mann i første klasse "dårligere" enn å være kvinne i tredjeklasse med tanke på overlevelse. Det viser seg at kjønn har større påvirkning på overlevelse fremfor hvilken klasse du er i, dette stemmer jo overens med at kvinner og barn går først når det evakueres. Det er kanskje da naturlig å se på hvordan alder spiller en rolle.

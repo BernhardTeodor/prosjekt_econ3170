@@ -18,7 +18,7 @@ library(tidyverse)
 ## Data
 
 ```{r echo = T, results = 'hide'}
-titanic <- read_csv("Titanic-Dataset.csv")
+titanic <- read_csv("train.csv")
 ```
 
 Vi benytter oss av data fra kaggel: <https://www.kaggle.com/competitions/titanic/data>.
@@ -190,7 +190,7 @@ titanic |>
 
 ```
 
-Det vi kan tolke fra output er at de fleste kvinner som er i førseklasse overlevde, uavhengig av hvor de kom ombord. Derfor tenker vi det er rimelig å fylle de manglende verdiene med tilfeldig trekk mellom "C" of "S", ettersom at de er de verdien som er mest sannsylige.
+Det vi kan tolke fra output er at de fleste kvinner som er i førseklasse overlevde, uavhengig av hvor de kom ombord. Derfor tenker vi det er rimelig å fylle de manglende verdiene med tilfeldig trekk mellom "C" og "S", ettersom at de er de verdien som er mest sannsylige.
 
 ```{r}
 

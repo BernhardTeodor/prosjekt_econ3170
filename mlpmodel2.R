@@ -71,7 +71,8 @@ cv <- vfold_cv(titanic.train, v = 10, strata = Survived)
 rec <- recipe(Survived ~ ., data = titanic.train) |>
   step_impute_mean(all_numeric_predictors()) |> 
   step_dummy(Embarked, Pclass, Sex) |> 
-  step_normalize(Age, Fare, pers.pr.ticket, fam.size, Parch)
+  step_normalize(Age, Fare, pers.pr.ticket, fam.size, Parch) |> 
+  step_zv(all_numeric_predictors()) 
 
 
 mlp.model <- mlp(hidden_units = tune(), penalty = tune(), epochs = tune()) |> 
@@ -92,8 +93,6 @@ grid <- grid_latin_hypercube(
   mlp_params,
   size = 100
 )
-
-
 
 
 mlp_tune <- tune_grid(

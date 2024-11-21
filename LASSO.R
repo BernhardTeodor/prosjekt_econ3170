@@ -2,6 +2,8 @@ library(tidyverse)
 library(tidymodels)
 library(parsnip)
 
+set.seed(3170)
+
 titanic <- read_csv("Titanic-Dataset.csv") |> 
   mutate(Pclass = as.factor(Pclass),
          Survived = as.factor(Survived))
@@ -56,6 +58,10 @@ titanic <- titanic |>
   select(-c(Name, PassengerId, Cabin, Ticket)) |> 
   filter(!is.na(Embarked))
 
+titanic.split <- titanic |> 
+  initial_split(prop = .8, strata = Survived)
+titanic_train <- training(titanic.split)
+titanic_test <- testing(titanic.split)
 
 
 ### Definerer motor; LASSO model
@@ -65,10 +71,9 @@ LASSO_model <- logistic_reg()|>
   set_engine("glmnet") |>
   set_mode("classification")
 
-rec <- recipe(Survived ~ ., data = titanic.train) |>
+rec <- recipe(Survived ~ ., data = titanic_train) |>
   step_impute_mean(all_numeric_predictors()) |> 
-  step_dummy(Embarked, Pclass, Sex)  |>
-  step_normalize(Age, Fare, Parch)
+  step_dummy(Embarked, Pclass, Sex)
 
 ##Lager en workflow
 wf <- workflow()|>
@@ -80,15 +85,22 @@ wf <- workflow()|>
 LASSO_params <- wf |> extract_parameter_set_dials(wf)
 
 #Deler dataen inn i 10 mapper for kryssvalidering
-cv <- vfold_cv(titanic.train, v = 10, strata = Survived)
+cv <- vfold_cv(titanic_train, v = 10, strata = Survived)
 
+LASSO_grid <- LASSO_params |> 
+  grid_latin_hypercube(
+    size = 500
+)
+
+metric <-  metric_set(accuracy, roc_auc, brier_class)
 
 #Tilpasser parameterene ved hjelp av kryssvalidering
 tune_results <- tune_grid(
   wf,
   resamples = cv,
-  grid = LASSO_params |> grid_random(size = 200) ,
-  control = control_grid(save_pred = TRUE)
+  grid = LASSO_grid,
+  control = control_grid(save_pred = TRUE),
+  metrics = metric
 )
 
 

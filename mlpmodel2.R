@@ -48,17 +48,18 @@ for (i in 1:3){
 
 
 #Lager en dummyvariabel for om vedkommende er over eller under 18, og legger til antall personer per bilett
+
+
 titanic <- titanic |> 
-  mutate(is.minor = ifelse(Age < 18, 1, 0),
-         fam.size = SibSp+Parch,
-         is.alone = ifelse(fam.size == 0, 1, 0)) |> 
-  add_count(Ticket, name = "pers.pr.ticket")
+  add_count(Ticket, name = "Person_per_ticket") |> 
+  mutate(Minor = ifelse(Age < 18, 1, 0),
+         Family_size = SibSp+Parch,
+         Alone = ifelse(fam.size == 0, 1, 0)) |> 
+  select(-c(Name, PassengerId, Cabin, Ticket, SibSp, Parch))
 
 
 #Fjerner varibaler med Strings, og eliminerer NA-verider i embarked
-titanic <- titanic |> 
-  select(-c(Name, PassengerId, Cabin, Ticket)) |> 
-  filter(!is.na(Embarked))
+
 
 
 #Deler datasetet inn i trenings- og testsett
@@ -78,9 +79,7 @@ cv <- vfold_cv(titanic.train, v = 10, strata = Survived)
 #Lager en recipe for å forberede dataene    
 rec <- recipe(Survived ~ ., data = titanic.train) |>
   step_impute_mean(all_numeric_predictors()) |> 
-  step_dummy(Embarked, Pclass, Sex) |> 
-  step_normalize(Age, Fare, pers.pr.ticket, fam.size, Parch) |> 
-  step_zv(all_numeric_predictors()) 
+  step_dummy(Embarked, Pclass, Sex) 
 
 
 mlp.model <- mlp(hidden_units = tune(), penalty = tune(), epochs = tune()) |> 

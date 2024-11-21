@@ -270,6 +270,7 @@ titanic |>
   geom_histogram() +
   facet_wrap(vars(Survived))
 ```
+
 Det fremkomer ingen tydelelig sammenheng, vi deler inn i aldersgrupper, og ser på andelen overlevne i ulike aldersgrupper fordelt på kjønn
 
 ```{r}
@@ -289,12 +290,8 @@ titanic |>
   ylab("Andel overlevd") +
   facet_wrap(vars(Sex))
 ```
-Vi ser at det er en svak sammenheng mellom alder og overlevelse. Den laveste overlevelsesraten er for menn i alderen 20-31, noe som gir menging ettersom disse trolig måtte vente lengst på redningsbåt. For kvinner er tendensen noe lik, men her er det heller ingen sterk sammenheng. Det er også viktig å nevne at sammenhengen vi ser kan være noe spuriøs. Her kan for eksempel Pclass være viktig. 
 
-
-
-
-
+Vi ser at det er en svak sammenheng mellom alder og overlevelse. Den laveste overlevelsesraten er for menn i alderen 20-31, noe som gir menging ettersom disse trolig måtte vente lengst på redningsbåt. For kvinner er tendensen noe lik, men her er det heller ingen sterk sammenheng. Det er også viktig å nevne at sammenhengen vi ser kan være noe spuriøs. Her kan for eksempel Pclass være viktig.
 
 ```{r}
 
@@ -384,13 +381,10 @@ Oppsumer hva vi har fått ut fra plottene, hva slags sammenhenger har vi lært??
 ## Maskinlæring
 
 ```{r}
-
 set.seed(3170)
-split <- initial_split(titanic)
+split <- initial_split(titanic, prop = 0.8, strata = Survived)
 titanic_train <- training(split)
-titanic_split <- testing(split)
-
-
+titanic_test <- testing(split)
 ```
 
 Neste:

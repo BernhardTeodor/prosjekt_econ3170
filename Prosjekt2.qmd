@@ -1,27 +1,30 @@
 ---
-title: "Titanic"
-format: pdf
+title: "Prosjekt"
+format: html
 editor: visual
 ---
 
-# Prosjekt econ 3170/4170
+# Titanic katastrofen- ECON 3170
+
+## *Introduksjon*
+
+I denne oppgaven skal vi - ved hjelp av ulike maksinlæringsmodeller - forsøke å predikere om passasjerer på båten overlevde eller ikke. Datasettet er hentet fra "...", og oppgaven er inspirert av Kaggles maksinlæringskonkurranse. Vi innleder med å inspisere datasettet ved hjelp av plots for å forsøke å se sammenhengen mellom ulike variabler, og andelen overlevende. Videre vil vi forsøke å behandle manglende verdier, og tilpasse datasettet slik at det vil være enkelt å bruke i modellene. Vi vil så tilpasse parametere og hyperparametere for å forsøke å få så presise modeller som mulig. Til slutt vil vi implementere modellene i et dashboard hvor en kan finne overlevelsessansynlighet for en selvvalgt karakter.
 
 ## Pakker
 
 I prosjetet kommer vi hovedsaklig til å benytte oss av to pakker: tidyverse og tidymodels. Begge pakkene er samlinger av mange ulike pakker. Tidyverse skal vi hovedsaklig bruke til å manipulere data og visualisering. Tidymodels skal vi bruke til maskinlæring.
 
 ```{r echo = T, results = 'hide'}
-library(tidyverse)
-library(tidyverse)
+library(tidyverse) 
+library(tidymodels)
+
 ```
 
 ## Data
 
 ```{r echo = T, results = 'hide'}
-titanic <- read_csv("train.csv")
+titanic <- read_csv("Titanic-Dataset.csv")
 ```
-
-Vi benytter oss av data fra kaggel: <https://www.kaggle.com/competitions/titanic/data>.
 
 Datasettet bester av 12 kolonner. Her kommer en liten oversikt over hva de betyr:
 
@@ -45,9 +48,9 @@ Datasettet bester av 12 kolonner. Her kommer en liten oversikt over hva de betyr
 
 -   Embarked: Hvor de gikk ombord: C = Cherbourg, Q = Queenstown, S = Southampton.
 
--   Name
+-   Name: Tittel, og navn
 
--   PassengerId:
+-   PassengerId: Unike IDer til passasjerene
 
 ```{r}
 head(titanic)
@@ -92,115 +95,88 @@ titanic <- titanic |>
 Alder er også en variabel som mangler 177. Denne kolonnen er litt mer problematisk. Som drøftet ovenfor kan man tenke seg at alder har mye å si for analysen. Datasettet er lite så det blir dumt å fjerne disse radene. En muligheter er å kunne fylle disse verdiene med gjennomsnittsalderen. En annen metode som blir diskutert i denne artikkelen: <https://www.kaggle.com/code/allohvk/titanic-missing-age-imputation-tutorial-advanced>, er f.eks. å se på tittel som "Master" for å indentifisere unge gutter.
 
 ```{r}
+master.median <- list()
+mr.median <- list()
+mrs.median <- list()
+miss.median <- list()
 
-mean_age_master <- titanic |> 
-  filter(grepl("Master", Name)) |> 
-  summarise(mean(Age, na.rm = T)) |> 
-  pull()
+for (i in 1:3){
+  for (j in c("Master", "Mr.", "Mrs.", "Miss")) {
+    if (j == "Master"){
+      master.median[[i]] <- titanic |> 
+        filter(grepl("Master.", Name, fixed = TRUE), Pclass == i) |> 
+        summarise(median_age = median(Age, na.rm = TRUE)) |> 
+        pull(median_age)
+    } else if(j == "Mr."){
+      mr.median[[i]] <- titanic |> 
+        filter(grepl("Mr.", Name, fixed = TRUE), Pclass == i) |> 
+        summarise(median_age = median(Age, na.rm = TRUE)) |> 
+        pull(median_age)
+    } else if (j == "Mrs.") {
+      mrs.median[[i]] <- titanic |> 
+        filter(grepl("Mrs.", Name, fixed = TRUE), Pclass == i) |> 
+        summarise(median_age = median(Age, na.rm = TRUE)) |> 
+        pull(median_age)
+    } else if(j == "Miss") {
+      miss.median[[i]] <- titanic |> 
+        filter(grepl("Miss.", Name, fixed = TRUE), Pclass == i) |> 
+        summarise(median_age = median(Age, na.rm = TRUE)) |> 
+        pull(median_age)
+    }
+  }
+}
 
+for (i in 1:3){
+  titanic <- titanic |> 
+    mutate(Age = ifelse(grepl("Mr.", Name, fixed = T) & Pclass == i & is.na(Age), mr.median[[i]], Age)) |> 
+    mutate(Age = ifelse(grepl("Miss", Name, fixed = T) & Pclass == i & is.na(Age), miss.median[[i]], Age)) |> 
+    mutate(Age = ifelse(grepl("Mrs.", Name, fixed = T) & Pclass == i & is.na(Age), mrs.median[[i]], Age)) |> 
+    mutate(Age = ifelse(grepl("Master", Name, fixed = T) & Pclass == i & is.na(Age), master.median[[i]], Age))
+}
 
-titanic <- titanic |> 
-  mutate(Age = ifelse(is.na(Age) & (grepl("Master", Name)), 
-                      yes = round(mean_age_master,0), 
-                      no = Age))
-```
-
-Her finner vi gjennomsnittlig alder for personer med "Master" som tittel og implemterer dette i datasettet med en ifelse-statment.
-
-```{r}
 titanic |> 
-  select(Age) |> 
-  summarise(sum(is.na(Age))) |> 
-  pull()
+  filter(is.na(Age))
+
 ```
 
-Likevel har vi fortsatt 173 manglende verdier. Andre fremmgangsmetoder som også blir nevnt i artikkelen er å bruke gjennomsnittsalderen for gitte klasser og kjønn.
+Vi imputerer de manglende veridene ved å ta utgangspunkt i tittel - Master, Mr. , Mrs. , Miss. - og finner gjennomsnittsalderen for klassen de tilhører, og imputerer dette i datasettet. Vi ser at det fremdeles er en mangelnde verdi, som vi imputerer med gjennomsnittsalderen for klassen og personens tittel.
 
 ```{r}
+mean.dr.p1 <- titanic |> 
+  filter(grepl("Dr.", Name, fixed = TRUE) & Pclass == 1) |> 
+  summarise(round(mean(Age, na.rm = TRUE))) |> 
+  pull()
 
-mean_age_menn_p <- rep(0,3)
-mean_age_kvinne_p <- rep(0,3) 
-for (i in 1:3)
-{
-  mean_age_menn_p[i] <- titanic |> 
-    filter(Pclass == i &  Sex == "male") |> 
-    summarise(round(mean(Age, na.rm = T),0)) |> 
-    pull()
-  
-  mean_age_kvinne_p[i] <- titanic|> 
-    filter(Pclass == i &  Sex == "female") |> 
-    summarise(round(mean(Age, na.rm = T),0)) |> 
-    pull()
-}
-
-mann_p3 <- "Moran, Mr. James"
-mann_p2 <- "Williams, Mr. Charles Eugene"
-mann_p1 <- "Woolner, Mr. Hugh"
-
-kvinne_p3 <- "Moran, Miss. Bertha"
-kvinne_p1 <- "Thorne, Mrs. Gertrude Maybelle"
-kvinne_p2 <- "Keane, Miss. Nora A"
-
-navn_med_na <- c(mann_p1, mann_p2, mann_p3,
-                 kvinne_p1, kvinne_p2, kvinne_p3)
-
-aldere <- c(mean_age_menn_p, mean_age_kvinne_p)
-
-for (i in 1:3)
-{
 titanic <- titanic |> 
-   mutate(Age = ifelse(is.na(Age) & Sex == "male" & Pclass == i, 
-                       mean_age_menn_p[i], 
-                       Age)) |> 
-  mutate(Age = ifelse(is.na(Age) & Sex == "female" & Pclass == i, 
-                      mean_age_kvinne_p[i], 
-                      Age)) 
-}
+  mutate(Age = ifelse(is.na(Age), mean.dr.p1, Age))
 
-
-for (i in 1:6)
-{
-  person_ald <- titanic |> 
-    filter(Name == navn_med_na[i]) |> 
-    pull(Age)
-  
-  stopifnot(person_ald == aldere[i])
-}
 ```
-
-Her finner vi først gjennomsnittsalderne på for kjønn gitt pclass, deretter finner vi seks tilfeldige navn for en gitt pclass som vi vet har manglende verdier. Så fyller vi datarammen med disse verdiene. For å sjekke at verdiene ble riktige kjører vi en løkke med en "stopifnot" metode for å sjekke at personene fikk riktig verdi.
 
 Nå har vi kun 2 manglende verdier for embarked. Det burde nok gå greit å fjerne dem, men vi kan også prøve å utforske dataen før vi gjør det.
 
 ```{r}
-
 titanic |> 
   filter(is.na(Embarked))
 ```
 
 Det er her snakk om to kvinner som begge overlevde og var i første klasse. Datasette er ikke kjempe stort og det ville vært dumt å skulle miste rader med folk som overlevde. Vi kan utforske litt mer.
 
-```{r}
-
+```{r, warning=FALSE}
 titanic |> 
   filter(Sex == "female" & Pclass == 1) |> 
   group_by(Embarked, Pclass) |>
   summarise(mean_survived = mean(Survived), antall = n())
-
-
 ```
 
 Det vi kan tolke fra output er at de fleste kvinner som er i førseklasse overlevde, uavhengig av hvor de kom ombord. Derfor tenker vi det er rimelig å fylle de manglende verdiene med tilfeldig trekk mellom "C" og "S", ettersom at de er de verdien som er mest sannsylige.
 
 ```{r}
-
 tilfeldig_embarked <- sample(c("C", "S"), size = 1)
 
 titanic <- titanic |> 
   mutate(Embarked = ifelse(is.na(Embarked),
                            yes = tilfeldig_embarked,
                            no = Embarked))
-  
 ```
 
 ### Visualisering av data
@@ -212,17 +188,11 @@ titanic |>
   group_by(Survived) |> 
   summarise(Antall = n())
 
-titanic |> 
-  ggplot(aes(x = Survived, fill = as.factor(Survived))) +
-  geom_bar() +
-  ylab("Antall") +
-  ggtitle("Fordeling av overlevde")
 ```
 
 I følge dataen vi har er det kun 342 person som overlevde, mens det var 549 som ikke gjorde det. Har dette noe å si for f.eks. Pclass.
 
 ```{r}
-
 titanic |> 
   ggplot(aes(x = Survived, fill = as.factor(Survived))) +
   geom_bar() +
@@ -235,31 +205,23 @@ Antallet som overlevde ser ut til å være ganske likt mellom klassene. Det er n
 ```{r}
 titanic |> 
   group_by(Pclass) |> 
-  summarise(Survived_share = sum(Survived)/n())
+  summarise(Overlevelsesandel = sum(Survived)/n())
 
-titanic |> 
-  group_by(Pclass) |> 
-  summarise(Survived_share = sum(Survived)/n()) |>
-  mutate(Klasse = c("1.Første", "2.Andre", "3.Tredje")) |> 
-  ggplot(aes(x = Pclass,y = Survived_share, fill = Klasse)) +
-  geom_col() +
-  ylab("Prosent som overlede") +
-  xlab("Overlevde")
 ```
 
 Her får vi et tydligere bilde over overlevelse og hvilken klasse du er i. Vi ser at andel som overlevde blir betraktlig større desto høyre klasse klasse man er i. Kan kjønn ha noe betydning?
 
 ```{r}
+library(tidyverse)
 
 titanic |> 
   group_by(Pclass,Sex) |> 
-  summarise(Survived_share = sum(Survived)/n())|> 
-  ggplot(aes(x = Pclass, y =Survived_share, fill = Sex)) +
-  geom_col(position = position_dodge())+
+  summarise(Overlevelsesandel = sum(Survived)/n()) |> 
+  ggplot(aes(x = Pclass, y = Overlevelsesandel, fill = Sex)) +
+  geom_col(position = position_dodge()) +
   ylab("Andel som overlevde") +
   xlab("Klasse") +
-  ggtitle("Fordeling av andel klasser og kjønn")
-
+  ggtitle("Fordeling over andel, klasser og kjonn")
 ```
 
 Her ser vi at det er en tydelig sammenheng mellom klasse og kjønn for overlevelse. Det ser ut som at kvinner i første og andre klasse har realtivt stor sannsynlighet for å overleve. Kvinner i tredje klasse ligger på rundt femti prosent. Andelen menn som overlevde er betraktlig lavere i alle klasser samenlignet med kvinner. Andel menn som overlevde i andre og tredje klasse er omtrent halvparten av det den er i første klasse, likevel er det å være mann i første klasse "dårligere" enn å være kvinne i tredjeklasse med tanke på overlevelse. Det viser seg at kjønn har større påvirkning på overlevelse fremfor hvilken klasse du er i, dette stemmer jo overens med at kvinner og barn går først når det evakueres. Det er kanskje da naturlig å se på hvordan alder spiller en rolle.
@@ -270,6 +232,7 @@ titanic |>
   geom_histogram() +
   facet_wrap(vars(Survived))
 ```
+
 Det fremkomer ingen tydelelig sammenheng, vi deler inn i aldersgrupper, og ser på andelen overlevne i ulike aldersgrupper fordelt på kjønn
 
 ```{r}
@@ -289,58 +252,8 @@ titanic |>
   ylab("Andel overlevd") +
   facet_wrap(vars(Sex))
 ```
-Vi ser at det er en svak sammenheng mellom alder og overlevelse. Den laveste overlevelsesraten er for menn i alderen 20-31, noe som gir menging ettersom disse trolig måtte vente lengst på redningsbåt. For kvinner er tendensen noe lik, men her er det heller ingen sterk sammenheng. Det er også viktig å nevne at sammenhengen vi ser kan være noe spuriøs. Her kan for eksempel Pclass være viktig. 
 
-
-
-
-
-
-```{r}
-
-# Assuming 'titanic' is your dataframe
-titanic |> 
-  mutate(
-    Agegroup = cut(
-      Age, 
-      breaks = c(-Inf, 20, 30, 40, 50, 60, Inf), 
-      labels = c("0-20", "20-30", "31-40", "41-50", "51-60", "61+")),
-    Agegroup_mid = case_when(
-      Agegroup == "0-20" ~ 10,
-      Agegroup == "20-30" ~ 25,
-      Agegroup == "31-40" ~ 35,
-      Agegroup == "41-50" ~ 45,
-      Agegroup == "51-60" ~ 55,
-      Agegroup == "61+" ~ 70
-    )
-  ) |> 
-  group_by(Agegroup, Agegroup_mid, Sex, Pclass) |> 
-  summarise(Andel = sum(Survived)/n()) |> 
-  ggplot(aes(x = Agegroup_mid, y = Andel)) +
-  geom_point() +
-  geom_smooth(method = "lm") +
-  facet_wrap(vars(Sex, Pclass)) +
-  scale_x_continuous(breaks = c(10, 25, 35, 45, 55, 70), labels = c("0-20", "20-30", "31-40", "41-50", "51-60", "61+")) +
-  labs(x = "Age Group", y = "Proportion Survived", title = "Survival Proportion by Age Group, Sex, and Pclass")
-
-
-
-titanic %>%
-  filter(!is.na(Age)) %>%
-  group_by(Age, Sex, Pclass) %>%
-  summarise(Andel = sum(Survived)/n()) %>%
-  ggplot(aes(x = Age, y = Andel)) +
-  geom_point() +
-  geom_smooth(method = "lm") +
-  facet_wrap(vars(Sex, Pclass)) +
-  labs(x = "Age", y = "Proportion Survived", title = "Survival Proportion by Age, Sex, and Pclass") +
-  theme_minimal()
-
-```
-
-Deler inn i aldersgrupper for å letter kunne tolke dataen
-
-Her ser vi mye av det samme som i plottet ovenfor, men med litt mer innsikt. Uansett aldersgruppe er det en høy andel av kvinner som overlever i første og andre klasse, derimot i tredje klasse var det en betraktlig mindre andel som overlevde uansett aldersgruppe, med untak av 61 år og eldre, noe som kanskje skyler et lite utvalg i denne gruppen. Menn ser vi at andelen overlevde er ganske lav uansett aldersgruppe. Likevel ser vi at de yngste mellom 0-20 har en liten fordel. Tendensen ser nærmest ut som at desto eldre du blir desto lavere blir andelen som overlever. Grafene gir oss ikke særlig tydlig svar på om alder egentlig spiller en rolle, men at det forsatt ser ut som at kjønn er den variabelen som har størst betydning.
+Vi ser at det er en svak sammenheng mellom alder og overlevelse. Den laveste overlevelsesraten er for menn i alderen 20-31, noe som gir menging ettersom disse trolig måtte vente lengst på redningsbåt. For kvinner er tendensen noe lik, men her er det heller ingen sterk sammenheng. Det er også viktig å nevne at sammenhengen vi ser kan være noe spuriøs. Her kan for eksempel Pclass være viktig.
 
 Hva med prisen hvor mye de betalte, har det noe å si for overlevelsen.
 
@@ -361,44 +274,16 @@ titanic |>
   facet_wrap(vars(Sex))
 ```
 
-Ettersom at fordlingen over hvor mye hver person betalte er høyre vridd har vi prøvd å dele dem inn i seks grupper, litt som for alder. Vi ser også at det er en del uteliggere, derfor har vi prøvd å filtrere disse bort. Det vi tolker fra grafene er at jo mer folk betalte for reisen desto større andel overlevde, spessielt hos menn. Funnet samsvarer også med grafen over at andelen menn i første klasse hadde en større andel overlevende. Tendensen er ikke like sterk hos kvinner. Noe som tyder på at det å være kvinner taler for at bilettprisen har mindre betydning for dem enn det den har hos menn.
+Ettersom at fordlingen over hvor mye hver person betalte er høyrevridd har vi prøvd å dele dem inn i seks grupper, slik som for alder. Vi ser også at det er en del uteliggere, derfor har vi prøvd å filtrere disse bort. Det vi tolker fra grafene er at jo mer folk betalte for reisen desto større andel overlevde, spessielt hos menn. Funnet samsvarer også med grafen over at andelen menn i første klasse hadde en større andel overlevende. Tendensen er ikke like sterk hos kvinner. Noe som tyder på at det å være kvinner taler for at billettprisen har mindre betydning for dem enn det den har hos menn.
 
 ```{r}
-
-titanic |> 
-  group_by(Embarked, Pclass) |> 
-  summarise(Antall = n())
-
 titanic |> 
   group_by(Embarked, Pclass) |> 
   summarise(andel_overlevde = sum(Survived)/ n()) |> 
   ggplot(aes(x = Pclass, y = andel_overlevde, fill = Embarked )) +
   geom_col(position = position_dodge())
-
 ```
 
-Plotter for hver enkelt pclass, ettersom at en stor andel av de som kommer fra Queenstown går rett i tredje klasse noe som har en tydlig sammenheng med overlevelse. Grafen viser ikke noe særlig sammenheng mellom hvor du gikk ombord og overlevelse. Dette gir gi også mening ettersom at, det egentlig ikke burde ha noe å si.
+Grafen viser ikke noe særlig sammenheng mellom hvor du gikk ombord og overlevelse. Dette gir gi også mening ettersom at, det egentlig ikke burde ha noe å si.
 
-Oppsumer hva vi har fått ut fra plottene, hva slags sammenhenger har vi lært???? Kan plottene bli bedre.
-
-## Maskinlæring
-
-```{r}
-
-set.seed(3170)
-split <- initial_split(titanic)
-titanic_train <- training(split)
-titanic_split <- testing(split)
-
-
-```
-
-Neste:
-
-Sjekke fair og embarked
-
-Nye variabler: Familysize. Aldersgruppe?? fair_class
-
-Sette opp modeller
-
-Analyser
+Vi kan se av grafene at det i hovedsak er kjønn og hvilken klasse en tilhører som har sterkest sammenheng med overlevelsen. Vi ser at hvor mye biletten kostet har noe å si for overlevelse, men denne sammengen er sterkest for menn, og at hvor en gikk på ikke har så mye å si. Alder har mest å si for menn.

@@ -1,10 +1,10 @@
 library(tidyverse)
 library(tidymodels)
-
 #Laste inn datasettet, og fjerne og manipulere kolonner
 titanic <- read_csv("Titanic-Dataset.csv") |> 
   mutate(Pclass = as.factor(Pclass),
          Survived = as.factor(Survived))
+
 
 #Lager behandling av NAs
 master.median <- list()
@@ -46,15 +46,20 @@ for (i in 1:3){
     mutate(Age = ifelse(grepl("Master", Name, fixed = T) & Pclass == i & is.na(Age), master.median[[i]], Age))
 }
 
+
+#Lager en dummyvariabel for om vedkommende er over eller under 18, og legger til antall personer per bilett
 titanic <- titanic |> 
   mutate(is.minor = ifelse(Age < 18, 1, 0),
          fam.size = SibSp+Parch,
          is.alone = ifelse(fam.size == 0, 1, 0)) |> 
   add_count(Ticket, name = "pers.pr.ticket")
 
+
+#Fjerner varibaler med Strings, og eliminerer NA-verider i embarked
 titanic <- titanic |> 
   select(-c(Name, PassengerId, Cabin, Ticket)) |> 
   filter(!is.na(Embarked))
+
 
 #Deler datasetet inn i trenings- og testsett
 set.seed(3170)
@@ -64,10 +69,13 @@ titanic.split <- titanic |>
 titanic.train <- training(titanic.split)
 titanic.test <- testing(titanic.split)
 
-#Deler treningsettet inn i mapper til kryssvalidering
+
+#Deler datasettet inn i mapper for kryssvalidering
+
 cv <- vfold_cv(titanic.train, v = 10, strata = Survived)
 
-#Lager en recipe for å forberede dataene
+
+#Lager en recipe for å forberede dataene    
 rec <- recipe(Survived ~ ., data = titanic.train) |>
   step_impute_mean(all_numeric_predictors()) |> 
   step_dummy(Embarked, Pclass, Sex) |> 
@@ -84,7 +92,6 @@ mlp_wflow <- workflow() |>
   add_recipe(rec)
 
 mlp_params <- extract_parameter_set_dials(mlp_wflow)
-
 print(mlp_params)
 
 meterics <- metric_set(roc_auc, accuracy, brier_class)
@@ -94,7 +101,6 @@ grid <- grid_latin_hypercube(
   size = 100
 )
 
-
 mlp_tune <- tune_grid(
   mlp_wflow, 
   resamples = cv, 
@@ -102,8 +108,6 @@ mlp_tune <- tune_grid(
   metrics = meterics,
   control = control_grid(save_pred = TRUE)
 )
-
-
 logistic_param.reg <- select_best(mlp_tune, metric = "brier_class") |>
   select(-.config)
 
@@ -118,9 +122,8 @@ mlp_pred <- fn.mlp_fit |>
 
 Error <- (as.numeric(mlp_pred$.pred_class)-as.numeric(titanic.test$Survived))^2 |> 
   mean()
+
 Error
-
-
 
 rec |>
   prep() |> 

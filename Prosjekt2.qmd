@@ -17,7 +17,6 @@ I prosjetet kommer vi hovedsaklig til å benytte oss av to pakker: tidyverse og 
 ```{r echo = T, results = 'hide'}
 library(tidyverse) 
 library(tidymodels)
-
 ```
 
 ## Data
@@ -79,9 +78,7 @@ Inspirasjon: <https://www.kaggle.com/code/allohvk/titanic-advanced-eda?scriptVer
 Bruker skim fra pakken skimr for å få en oversikt over dataen:
 
 ```{r}
-
 skimr::skim(Titanic)
-
 ```
 
 Her får vi vite at det 891 rander og at 5 av de tolv kolonnene er av typen "character". Det som er av mest interesse i outputen er kolonnen med "n_missing". Kolonnen "Cabin" har 687 manglende verdier. Det er rimelig å tenke seg at lugarnummeret ikke har så mye å si for overlevelsen, og at heller "Pclass" er viktigere for analysen. Med så mange manglende verdier blir det også vanskelig å lage nye variabler med hvilket dekk man var på. Da måtte man eventuelt gjort noen antagelser om at første klasse var på dekk A og B, men det blir jo nesten det samme som pclass og derfor ikke hensiktsmessig. Ettersom at datasettet ikker er så stort er det mer hensiktsmessig å fjerne hele kolonnen fremfor å fjerne alle randene med manglende verdier.
@@ -287,3 +284,537 @@ titanic |>
 Grafen viser ikke noe særlig sammenheng mellom hvor du gikk ombord og overlevelse. Dette gir gi også mening ettersom at, det egentlig ikke burde ha noe å si.
 
 Vi kan se av grafene at det i hovedsak er kjønn og hvilken klasse en tilhører som har sterkest sammenheng med overlevelsen. Vi ser at hvor mye biletten kostet har noe å si for overlevelse, men denne sammengen er sterkest for menn, og at hvor en gikk på ikke har så mye å si. Alder har mest å si for menn.
+
+## Nye variabler
+
+Vi ser at den kan være hensiktsmessig å formalisere noen av variablene, og lage nye variabler.
+
+Vi velger å lage en dummy variabel for om man er mindreåring eller ikke, en for hvor stor familie personen reiser med, og antall personer per billett.
+
+```{r}
+titanic <- titanic |> 
+  add_count(Ticket, name = "Person_per_ticket") |> 
+  mutate(Minor = ifelse(Age < 18, 1, 0),
+         Family_size = SibSp+Parch,
+         Alone = ifelse(Family_size == 0, 1, 0)) |> 
+  select(-c(Name, Ticket, SibSp, Parch, PassengerId)) |> 
+  mutate(Pclass = as.factor(Pclass),
+         Alone = as.factor(Alone),
+         Survived = as.factor(Survived),
+         Minor = as.factor(Minor),
+         Sex = as.factor(Sex),
+         Embarked = as.factor(Embarked))
+```
+
+## Maskinlæring
+
+Før vi tilpasser modellene vi ønsker å bruke, deler vi datasettet inn i trening og test sett. Dataene deles inn i en 80/20 fordeling hvor variabelen Survived skal være jevnt fordelt.
+
+```{r}
+set.seed(3170)
+titanic_split<- initial_split(titanic, prop = .8, strata = Survived)
+titanic_train <- training(titanic_split)
+titanic_test <- testing(titanic_split)
+titanic_split
+```
+
+Lager en recepie
+
+```{r}
+titanic_recipe <- 
+  recipe(Survived ~ ., data = titanic_train) |>
+  step_dummy(Sex, Embarked, Alone, Pclass, Minor)
+```
+
+### Lasso
+
+```{r}
+lasso_model <- 
+  logistic_reg(penalty = tune(), mixture = 1) |> 
+  set_engine("glmnet") |> 
+  set_mode("classification")
+
+
+wflow_lasso <- 
+  workflow() |> 
+  add_recipe(titanic_recipe) |> 
+  add_model(lasso_model)
+
+folds <- vfold_cv(titanic_train, 5, strata = Survived)
+
+penalty_grid <- grid_regular(penalty(range = c(-4, -1)), levels = 100)
+
+doParallel::registerDoParallel() # Parallelprogramering for raskere tune
+
+lasso_tune <- 
+  wflow_lasso |> 
+  tune_grid(resamples = folds, grid = penalty_grid)
+
+lasso_tune |>
+  collect_metrics() |> 
+  filter(.metric != "brier_class") |> 
+  ggplot(aes(penalty, mean, color = .metric)) +
+  geom_errorbar(aes(
+    ymin = mean - std_err,
+    ymax = mean + std_err
+  )) +
+  geom_line(size = 1.5) +
+  facet_wrap(~.metric, scales = "free", nrow = 2) +
+  scale_x_log10() +
+  theme(legend.position = "none") +
+  ggtitle("Modellens prestasjon for ulike verdier av lambda")+
+  xlab("Straff(lambda)") +
+  ylab("Gjennomsnit")
+
+```
+
+```{r}
+beste_lamda <- select_best(lasso_tune, metric = "roc_auc")
+beste_lamda
+
+lasso_fit <- finalize_workflow(wflow_lasso, beste_lamda) |> 
+  fit(data = titanic_train)
+```
+
+```{r}
+predict(lasso_fit, titanic_test) |> 
+  bind_cols(titanic_test) |> 
+  accuracy(truth = Survived, estimate = .pred_class)
+```
+
+```{r}
+auc_lasso <- 
+  predict(lasso_fit, titanic_test, type = "prob") |> 
+  bind_cols(titanic_test) |> 
+  roc_auc(Survived, .pred_0) |> 
+  pull(.estimate)
+
+lasso_roc <- predict(lasso_fit, titanic_test, type = "prob") |> 
+  bind_cols(titanic_test) |> 
+  roc_curve(Survived, .pred_0)
+
+lasso_roc |>   
+  ggplot(aes(x = 1 - specificity, y = sensitivity)) + 
+  geom_path(col = "blue") +
+  geom_abline(slope = 1, linetype = "dashed") +
+  coord_equal()+
+  annotate("text", x = 0.6, y = 0.1, 
+           label = paste("AUC =", round(auc_lasso,3) ), size = 5) +
+  theme_bw() +
+  ggtitle("ROC-Kurve")
+
+
+```
+
+```{r}
+lasso_fit |> 
+  extract_fit_parsnip() |> 
+  vip::vi() |> 
+  ggplot(aes(y = reorder(Variable, Importance), 
+             x = Importance, fill = Sign)) +
+  geom_col() +
+  theme() + 
+  ggtitle("Viktigheten av ulike variabler") +
+  xlab("Betydning") +
+  ylab("Variabler")
+```
+
+```{r}
+library(cvms)
+
+prediksjoner_lasso <- predict(lasso_fit, titanic_test) |> 
+  bind_cols(titanic_test)
+
+feilmatrise_lasso <- prediksjoner_lasso |> 
+  conf_mat(Survived, .pred_class)
+
+riktigmatrise_lasso <- as.tibble(feilmatrise_lasso$table) |> 
+  mutate(Prediction = ifelse(Prediction == 0, "Not survived", "Survived")) |> 
+  mutate(Truth = ifelse(Truth == 0, "Not survived", "Survived"))
+
+plot_confusion_matrix(riktigmatrise_lasso, "Prediction", "Truth", "n", 
+                      add_normalized = F,
+                      add_row_percentages = F,
+                      add_col_percentages = F) +
+  xlab("Faktisk") +
+  ylab("Predikert") +
+  ggtitle("Feilmatrise Lasso")
+
+```
+
+Konklusjon: Lasso oser godt.
+
+### Random forest
+
+```{r}
+set.seed(3170)
+
+rf_mod <- rand_forest(
+  mtry = tune(),
+  trees = tune(),
+  min_n = tune()
+) |> 
+  set_engine("ranger", importance = "impurity") |>  
+  # For å kunne bruke Vip pakken
+  set_mode("classification")
+
+
+
+rf_wflow <- workflow() |> 
+  add_recipe(titanic_recipe) |> 
+  add_model(rf_mod)
+
+
+rf_grid <- grid_regular(
+  mtry(range = c(2, 7)),
+  min_n(range = c(2,7)),
+  trees(range = c(100,1200)),
+  levels = 5
+)
+
+
+doParallel::registerDoParallel()
+
+tune_rf <- tune_grid(
+  rf_wflow,
+  resamples = folds,
+  grid = rf_grid
+)
+
+tune_rf |> 
+  collect_metrics() |> 
+  filter(.metric == "roc_auc") |> 
+  mutate(min_n = factor(min_n)) |> 
+  ggplot(aes(mtry, mean, color = min_n)) +
+  geom_line(alpha = 0.5, size = 1.5) +
+  geom_point() +
+  labs(y = "AUC") +
+  facet_wrap(vars(trees))
+
+```
+
+Tune rf, er en flaskehals. Vet ikke helt hv avi skal gjøre for å gjøre den raskere. Likevel leverer den stor os
+
+```{r}
+set.seed(3170)
+beste_mtry_min_tree <- select_best(tune_rf, metric = "roc_auc")
+
+rf_fit <- finalize_workflow(rf_wflow, beste_mtry_min_tree) |> 
+  fit(titanic_train)
+
+
+predict(rf_fit, titanic_test) |> 
+  bind_cols(titanic_test) |> 
+  accuracy(Survived, .pred_class)
+```
+
+```{r}
+auc_rf <- 
+  predict(rf_fit, titanic_test, type = "prob") |> 
+  bind_cols(titanic_test) |> 
+  roc_auc(Survived, .pred_0) |> 
+  pull(.estimate)
+
+rf_roc <- predict(rf_fit, titanic_test, type = "prob") |> 
+  bind_cols(titanic_test) |> 
+  roc_curve(Survived, .pred_0) 
+
+rf_roc|>
+  ggplot(aes(x = 1 - specificity, y = sensitivity)) + 
+  geom_path(col = "blue") +
+  geom_abline(slope = 1, linetype = "dashed") +
+  coord_equal()+
+  annotate("text", x = 0.6, y = 0.1, label = paste("AUC =", round(auc_rf,3) ), size = 5) +
+  theme_bw() +
+  ggtitle("ROC-Kurve")
+```
+
+```{r}
+rf_fit |> 
+  extract_fit_parsnip() |> 
+  vip::vi() |> 
+  ggplot(aes(y = reorder(Variable, Importance), x = Importance, fill = "#F8766D")) +
+  geom_col() +
+  theme(legend.position = "none") + 
+  ggtitle("Viktigheten av ulike variabler") +
+  xlab("Betydning") +
+  ylab("Variabler")
+```
+
+```{r}
+prediksjoner_rf <- predict(rf_fit, titanic_test) |> 
+  bind_cols(titanic_test)
+
+feilmatrise_rf <- prediksjoner_rf |> 
+  conf_mat(Survived, .pred_class)
+
+riktigmatrise_rf <- as.tibble(feilmatrise_rf$table) |> 
+  mutate(Prediction = ifelse(Prediction == 0, "Not survived", "Survived")) |> 
+  mutate(Truth = ifelse(Truth == 0, "Not survived", "Survived"))
+
+plot_confusion_matrix(riktigmatrise_rf, "Prediction", "Truth", "n", 
+                      add_normalized = F,
+                      add_row_percentages = F,
+                      add_col_percentages = F) +
+  xlab("Faktisk") +
+  ylab("Predikert") +
+  ggtitle("Feilmatrise Random Forest")
+
+```
+
+### Decision tree
+
+```{r}
+
+decision_model <- decision_tree(
+  cost_complexity = tune(),
+  tree_depth = tune(),
+  min_n = tune()) |> 
+  set_engine("rpart") |> 
+  set_mode("classification")
+
+
+
+decision_wflow <- workflow() |> 
+  add_recipe(titanic_recipe) |> 
+  add_model(decision_model)
+
+decision_tree_params <- parameters(decision_model) |> 
+  update(
+    cost_complexity = cost_complexity(),
+    tree_depth = tree_depth(),
+    min_n = min_n()
+  )
+
+decision_grid <- grid_regular(
+  decision_tree_params,
+  levels = 5
+)
+
+doParallel::registerDoParallel()
+
+tune_decision <- tune_grid(
+  decision_wflow,
+  resamples = folds,
+  grid = decision_grid,
+)
+
+tune_decision |> 
+  collect_metrics() |> 
+  filter(.metric == "roc_auc") |> 
+  mutate(min_n = factor(min_n)) |> 
+  ggplot(aes(cost_complexity, mean, color = min_n)) +
+  geom_line(alpha = 0.5, size = 1.5) +
+  geom_point() +
+  labs(y = "AUC") +
+  facet_wrap(vars(tree_depth))
+
+```
+
+Lar tidymodels ta seg av ranges på ulike parameterer. Noe som vi ikke gjorde for random forest eller lasso.
+
+```{r}
+
+best_cost_depth_min <- select_best(tune_decision, metric = "roc_auc")
+best_cost_depth_min
+
+decision_fit <- finalize_workflow(decision_wflow, best_cost_depth_min) |> 
+  fit(titanic_train)
+
+
+predict(decision_fit, titanic_test) |> 
+  bind_cols(titanic_test) |> 
+  accuracy(Survived, .pred_class)
+```
+
+Dårligste Accuarcy så langt
+
+```{r}
+
+auc_decision <- 
+  predict(decision_fit, titanic_test, type = "prob") |> 
+  bind_cols(titanic_test) |> 
+  roc_auc(Survived, .pred_0) |> 
+  pull(.estimate)
+
+decision_roc <- predict(decision_fit, titanic_test, type = "prob") |> 
+  bind_cols(titanic_test) |> 
+  roc_curve(Survived, .pred_0) 
+
+decision_roc|>
+  ggplot(aes(x = 1 - specificity, y = sensitivity)) + 
+  geom_path(col = "blue") +
+  geom_abline(slope = 1, linetype = "dashed") +
+  coord_equal()+
+  annotate("text", x = 0.6, y = 0.1, 
+           label = paste("AUC =", round(auc_decision,3) ), size = 5) +
+  theme_bw() +
+  ggtitle("ROC-Kurve")
+
+```
+
+```{r}
+library(rpart)
+library(rpart.plot)
+
+decision_final_fit <- finalize_workflow(decision_wflow, best_cost_depth_min) |> 
+  last_fit(titanic_split)
+
+final_tree <- extract_workflow(decision_final_fit)
+
+final_tree |> 
+  extract_fit_engine() |> 
+  rpart.plot(roundint = FALSE)
+```
+
+For å bruke funkjsonen til rpart, må vi fitte på en annen måte, vi kunne ha brukt denne metodene med last_fit gjennom hele, men vi syntes det var greiere å kun jobbe med fit, isteden for å kjøre last_fit
+
+```{r}
+
+decision_fit |> 
+  extract_fit_parsnip() |> 
+  vip::vi() |> 
+  ggplot(aes(y = reorder(Variable, Importance), x = Importance, fill = "#F8766D")) +
+  geom_col() +
+  theme(legend.position = "none") + 
+  ggtitle("Viktigheten av ulike variabler decision tree") +
+  xlab("Betydning") +
+  ylab("Variabler")
+
+```
+
+```{r}
+
+prediksjoner_decision <- predict(decision_fit, titanic_test) |> 
+  bind_cols(titanic_test)
+
+feilmatrise_decision <- prediksjoner_decision |> 
+  conf_mat(Survived, .pred_class)
+
+riktigmatrise_decision <- as.tibble(feilmatrise_decision$table) |> 
+  mutate(Prediction = ifelse(Prediction == 0, "Not survived", "Survived")) |> 
+  mutate(Truth = ifelse(Truth == 0, "Not survived", "Survived"))
+
+plot_confusion_matrix(riktigmatrise_decision, "Prediction", "Truth", "n", 
+                      add_normalized = F,
+                      add_row_percentages = F,
+                      add_col_percentages = F) +
+  xlab("Faktisk") +
+  ylab("Predikert") +
+  ggtitle("Feilmatrise Decision tree")
+
+
+
+```
+
+### Xgboost
+
+```{r}
+
+xg_model <- boost_tree(
+  trees = 1000,
+  tree_depth = tune(),
+  learn_rate = tune(),
+  mtry = tune(),
+  min_n = tune(),
+  loss_reduction = tune(),
+  sample_size = tune()
+  )|> 
+  set_engine("xgboost") |> 
+  set_mode("classification")
+
+
+xg_wflow <- workflow() |> 
+  add_recipe(titanic_recipe) |> 
+  add_model(xg_model)
+
+xg_grid <- grid_latin_hypercube(
+  tree_depth(),
+  learn_rate(),
+  finalize(mtry(), titanic_train),
+  min_n(),
+  loss_reduction(),
+  sample_size = sample_prop(),
+  size = 50
+)
+ 
+doParallel::registerDoParallel()
+
+tune_xg <- tune_grid(
+  xg_wflow,
+  resamples = folds,
+  grid = xg_grid,
+)
+
+best_param_xg <- select_best(tune_xg, metric = "roc_auc")
+best_param_xg
+```
+
+grid: https://juliasilge.com/blog/xgboost-tune-volleyball/, blir litt vanskelig å plotte
+
+```{r}
+set.seed(3170)
+xg_fit <- finalize_workflow(xg_wflow, best_param_xg) |> 
+  fit(titanic_train)
+
+predict(xg_fit, titanic_test) |> 
+  bind_cols(titanic_test) |> 
+  accuracy(Survived, .pred_class)
+```
+
+```{r}
+auc_xg <- 
+  predict(xg_fit, titanic_test, type = "prob") |> 
+  bind_cols(titanic_test) |> 
+  roc_auc(Survived, .pred_0) |> 
+  pull(.estimate)
+
+xg_roc <- predict(xg_fit, titanic_test, type = "prob") |> 
+  bind_cols(titanic_test) |> 
+  roc_curve(Survived, .pred_0) 
+
+xg_roc|>
+  ggplot(aes(x = 1 - specificity, y = sensitivity)) + 
+  geom_path(col = "blue") +
+  geom_abline(slope = 1, linetype = "dashed") +
+  coord_equal()+
+  annotate("text", x = 0.6, y = 0.1, 
+           label = paste("AUC =", round(auc_xg,3) ), size = 5) +
+  theme_bw() +
+  ggtitle("ROC-Kurve")
+
+```
+
+```{r}
+xg_fit |> 
+  extract_fit_parsnip() |> 
+  vip::vi() |> 
+  ggplot(aes(y = reorder(Variable, Importance), x = Importance, fill = "#F8766D")) +
+  geom_col() +
+  theme(legend.position = "none") + 
+  ggtitle("Viktigheten av ulike variabler decision tree") +
+  xlab("Betydning") +
+  ylab("Variabler")
+```
+
+```{r}
+
+prediksjoner_xg <- predict(xg_fit, titanic_test) |> 
+  bind_cols(titanic_test)
+
+feilmatrise_xg <- prediksjoner_xg |> 
+  conf_mat(Survived, .pred_class)
+
+riktigmatrise_xg <- as.tibble(feilmatrise_xg$table) |> 
+  mutate(Prediction = ifelse(Prediction == 0, "Not survived", "Survived")) |> 
+  mutate(Truth = ifelse(Truth == 0, "Not survived", "Survived"))
+
+plot_confusion_matrix(riktigmatrise_xg, "Prediction", "Truth", "n", 
+                      add_normalized = F,
+                      add_row_percentages = F,
+                      add_col_percentages = F) +
+  xlab("Faktisk") +
+  ylab("Predikert") +
+  ggtitle("Feilmatrise XGboost")
+
+```

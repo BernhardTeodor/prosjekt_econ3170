@@ -439,8 +439,9 @@ wflow_lasso <-
 penalty_grid <- grid_regular(penalty(range = c(-4, -1)), levels = 100)
 
 
-folds <- vfold_cv(titanic_train, 10, strata = Survived)
+folds <- vfold_cv(titanic_train, 5, strata = Survived)
 
+doParallel::registerDoParallel()
 
 lasso_tune <- 
   wflow_lasso |> 
@@ -496,9 +497,11 @@ auc_lasso <-
   roc_auc(Survived, .pred_0) |> 
   pull(.estimate)
 
-predict(lasso_fit, titanic_test, type = "prob") |> 
+lasso_roc <- predict(lasso_fit, titanic_test, type = "prob") |> 
   bind_cols(titanic_test) |> 
-  roc_curve(Survived, .pred_0) |>
+  roc_curve(Survived, .pred_0)
+
+lasso_roc |>   
   ggplot(aes(x = 1 - specificity, y = sensitivity)) + 
   geom_path(col = "blue") +
   geom_abline(slope = 1, linetype = "dashed") +
@@ -634,9 +637,11 @@ auc_rf <-
   roc_auc(Survived, .pred_0) |> 
   pull(.estimate)
 
-predict(rf_fit, titanic_test, type = "prob") |> 
+rf_roc <- predict(rf_fit, titanic_test, type = "prob") |> 
   bind_cols(titanic_test) |> 
-  roc_curve(Survived, .pred_0) |>
+  roc_curve(Survived, .pred_0) 
+
+rf_roc|>
   ggplot(aes(x = 1 - specificity, y = sensitivity)) + 
   geom_path(col = "blue") +
   geom_abline(slope = 1, linetype = "dashed") +
@@ -699,13 +704,6 @@ decision_wflow <- workflow() |>
   add_recipe(lasso_recipe) |> 
   add_model(decision_model)
 
-#decision_grid <- grid_regular(
- # cost_complexity(range = c(0.001, 0.1)),
-  #tree_depth(range = c(1, 30)),
-  #min_n(range = c(1, 20)),
-  #level = 5
-#)
-
 decision_tree_params <- parameters(decision_model) |> 
   update(
     cost_complexity = cost_complexity(),
@@ -752,9 +750,6 @@ decision_fit <- finalize_workflow(decision_wflow, best_cost_depth_min) |>
 predict(decision_fit, titanic_test) |> 
   bind_cols(titanic_test) |> 
   accuracy(Survived, .pred_class)
-
-
-
 ```
 
 Dårligste Accuarcy så langt
@@ -767,9 +762,11 @@ auc_decision <-
   roc_auc(Survived, .pred_0) |> 
   pull(.estimate)
 
-predict(decision_fit, titanic_test, type = "prob") |> 
+decision_roc <- predict(decision_fit, titanic_test, type = "prob") |> 
   bind_cols(titanic_test) |> 
-  roc_curve(Survived, .pred_0) |>
+  roc_curve(Survived, .pred_0) 
+
+decision_roc|>
   ggplot(aes(x = 1 - specificity, y = sensitivity)) + 
   geom_path(col = "blue") +
   geom_abline(slope = 1, linetype = "dashed") +
@@ -778,7 +775,6 @@ predict(decision_fit, titanic_test, type = "prob") |>
            label = paste("AUC =", round(auc_decision,3) ), size = 5) +
   theme_bw() +
   ggtitle("ROC-Kurve")
-
 
 ```
 
@@ -875,12 +871,146 @@ tune_xg <- tune_grid(
   grid = xg_grid,
 )
 
+best_param_xg <- select_best(tune_xg, metric = "roc_auc")
+best_param_xg
+```
+
+grid: https://juliasilge.com/blog/xgboost-tune-volleyball/, blir litt vanskelig å plotte
+
+
+```{r}
+set.seed(3170)
+xg_fit <- finalize_workflow(xg_wflow, best_param_xg) |> 
+  fit(titanic_train)
+
+predict(xg_fit, titanic_test) |> 
+  bind_cols(titanic_test) |> 
+  accuracy(Survived, .pred_class)
+```
+
+
+```{r}
+auc_xg <- 
+  predict(xg_fit, titanic_test, type = "prob") |> 
+  bind_cols(titanic_test) |> 
+  roc_auc(Survived, .pred_0) |> 
+  pull(.estimate)
+
+xg_roc <- predict(xg_fit, titanic_test, type = "prob") |> 
+  bind_cols(titanic_test) |> 
+  roc_curve(Survived, .pred_0) 
+
+xg_roc|>
+  ggplot(aes(x = 1 - specificity, y = sensitivity)) + 
+  geom_path(col = "blue") +
+  geom_abline(slope = 1, linetype = "dashed") +
+  coord_equal()+
+  annotate("text", x = 0.6, y = 0.1, 
+           label = paste("AUC =", round(auc_xg,3) ), size = 5) +
+  theme_bw() +
+  ggtitle("ROC-Kurve")
+
+
+```
+
+```{r}
+xg_fit |> 
+  extract_fit_parsnip() |> 
+  vip::vi() |> 
+  ggplot(aes(y = reorder(Variable, Importance), x = Importance, fill = "#F8766D")) +
+  geom_col() +
+  theme(legend.position = "none") + 
+  ggtitle("Viktigheten av ulike variabler decision tree") +
+  xlab("Betydning") +
+  ylab("Variabler")
+```
+
+
+```{r}
+
+prediksjoner_xg <- predict(xg_fit, titanic_test) |> 
+  bind_cols(titanic_test)
+
+feilmatrise_xg <- prediksjoner_xg |> 
+  conf_mat(Survived, .pred_class)
+
+riktigmatrise_xg <- as.tibble(feilmatrise_xg$table) |> 
+  mutate(Prediction = ifelse(Prediction == 0, "Not survived", "Survived")) |> 
+  mutate(Truth = ifelse(Truth == 0, "Not survived", "Survived"))
+
+plot_confusion_matrix(riktigmatrise_xg, "Prediction", "Truth", "n", 
+                      add_normalized = F,
+                      add_row_percentages = F,
+                      add_col_percentages = F) +
+  xlab("Faktisk") +
+  ylab("Predikert") +
+  ggtitle("Feilmatrise XGboost")
+
+```
+
+### Sammenligne modeller
+
+
+```{r}
+
 
 
 
 ```
 
-grid: https://juliasilge.com/blog/xgboost-tune-volleyball/
+
+```{r}
+lasso_roc <- lasso_roc |> 
+  mutate(type = "Lasso")
+
+rf_roc <- rf_roc |> 
+  mutate(type = "Random forest")
+
+decision_roc <- decision_roc |> 
+  mutate(type = "Decision tree")
+
+xg_roc <- xg_roc |> 
+  mutate(type  = "XGboost")
+
+auc_alle <- lasso_roc |> 
+  bind_rows(rf_roc, decision_roc, xg_roc)
+
+
+auc_alle |> 
+  ggplot(aes(x = 1 - specificity, y = sensitivity, col = type)) + 
+  geom_path() +
+  geom_abline(slope = 1, linetype = "dashed") +
+  coord_equal()+
+  theme_bw() +
+  ggtitle("ROC-Kurver")
+```
+
+```{r}
+prediksjoner_lasso <- prediksjoner_lasso |> 
+  mutate(type = "Lasso")
+
+prediksjoner_rf <- prediksjoner_rf |> 
+  mutate(type = "Random forest")
+
+prediksjoner_decision <- prediksjoner_decision |> 
+  mutate(type = "Decision tree")
+
+prediksjoner_xg <- prediksjoner_xg |> 
+  mutate(type = "XGboost")
+
+alle_prediksjoner <- prediksjoner_lasso |> 
+  bind_rows(prediksjoner_rf, 
+            prediksjoner_decision, 
+            prediksjoner_xg)
+
+
+alle_prediksjoner |> 
+  group_by(type) |> 
+  accuracy(Survived,.pred_class)
+
+```
+
+
 
 Litt høyere AUC
 

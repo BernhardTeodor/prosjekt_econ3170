@@ -449,4 +449,45 @@ tune_rf |>
 select_best(tune_rf, metric = "roc_auc")
 
 
-##############################################
+tb <- boost_tree(
+  trees = tune()
+) |> 
+  set_engine("xgboost") |> 
+  set_mode("classification")
+
+
+tbw <- workflow() |> 
+  add_model(tb) |> 
+  add_recipe(lasso_recipe)
+
+tbgrid <- grid_regular(
+  trees(range = c(50, 500)),
+  levels = 5
+)
+
+tune_tb <- tune_grid(
+  tbw,
+  resamples = folds,
+  grid = tbgrid
+)
+set.seed(3170)
+tb_fit <- finalize_workflow(tbw, select_best(tune_tb, metric = "accuracy")) |> 
+  last_fit(split)
+
+
+tb_fit |> 
+  collect_metrics()
+
+tb_fit
+
+predict(tb_fit, titanic_test, type = "prob") |> 
+  bind_cols(titanic_test)
+
+predict(lasso_fit, titanic_test) |> 
+  bind_cols(titanic_test) |> 
+  accuracy(Survived, .pred_class)
+
+predict(lasso_fit, titanic_train) |> 
+  bind_cols(titanic_train) |> 
+  accuracy(Survived, .pred_class)
+

@@ -2,18 +2,17 @@
 title: "Prosjekt"
 format: html
 editor: visual
----s
 ---
 
 # Titanic katastrofen- ECON 3170
 
 ## *Introduksjon*
 
-I denne oppgaven skal vi - ved hjelp av ulike maksinlæringsmodeller - forsøke å predikere om passasjerer på båten overlevde eller ikke. Datasettet er hentet fra kaggle, og oppgaven er inspirert av Kaggles maksinlæringskonkurranse (Kaggle). Vi innleder med å inspisere datasettet ved hjelp av plots for å forsøke å se sammenhengen mellom ulike variabler, og andelen overlevende. Videre vil vi forsøke å behandle manglende verdier, og tilpasse datasettet slik at det vil være enkelt å bruke i modellene. Vi vil så tilpasse parametere og hyperparametere for å forsøke å få så presise modeller som mulig. Til slutt vil vi implementere modellene i et dashboard hvor en kan finne overlevelsessansynlighet for en selvvalgt karakter.
+I denne oppgaven skal vi - ved hjelp av ulike maksinlæringsmodeller - forsøke å predikere om passasjerer på Titanic overlevde eller ikke. Datasettet er hentet fra kaggle, og oppgaven er inspirert av Kaggles maksinlæringskonkurranse (Kaggle). Vi innleder med å innspisere datasettet, og forsøke å få oversikt over de ulike variablene, og omfanget av manglende verdier. Vi vil så forsøke å behandle de manglende verdiene, og tilpasse de slik at de blir enklere å bruke i treningen av maskinlæringsmodellene. Videre vil vi inspisere datasettet ved hjelp av plots for å forsøke å se sammenhengen mellom ulike variabler, og andelen overlevende. Vi vil så tilpasse parametere og hyperparametere for å forsøke å få så presise modeller som mulig. Til slutt vil vi implementere modellene i et dashboard hvor en kan finne overlevelsessansynlighet for en selvvalgt karakter.
 
 ## Pakker
 
-I prosjetet kommer vi hovedsaklig til å benytte oss av to pakker: tidyverse og tidymodels. Begge pakkene er samlinger av mange ulike pakker. Tidyverse skal vi hovedsaklig bruke til å manipulere data og visualisering. Tidymodels skal vi bruke til maskinlæring.
+I prosjetet kommer vi hovedsaklig til å benytte oss av to pakker: tidyverse og tidymodels. Begge pakkene er samlinger av mange ulike pakker. Vi kommer i hovedsak til å bruke Tidyverse til manipulering og visualisering av data, og Tidymodels til maskinlæring.
 
 ```{r, message=FALSE}
 library(tidyverse) 
@@ -35,31 +34,7 @@ glimpse(titanic[1,])
 
 #NOTE: "suppressMessages", for å unngå output melding.
 
-Datasettet består av 12 kolonner. Her kommer en liten oversikt over hva de betyr:
-
--   Survival: Om vedkommende overlevde: 1 = Ja, 0 = Nei.
-
--   Pclass: 1, 2 eller 3.klasse.(1 er best)
-
--   Sex: Kjønn
-
--   Age: Alder
-
--   Sibsp: Antall søsken/ ektefeller på Titanic
-
--   Parch: Antall foreldre/ barn på Titanic
-
--   Ticket: Bilettnummer
-
--   Fare: Pris
-
--   Cabin: Lugarnummer
-
--   Embarked: Hvor de gikk ombord: C = Cherbourg, Q = Queenstown, S = Southampton.
-
--   Name: Tittel, og navn
-
--   PassengerId: Unike IDer til passasjerene
+Datasettet består av 891 observasjoner med 12 variabler, og er en oversikt over et utvalg av passasjerene ombord på Titanic. Første kolonne er PassengerId som gir hver observasjon en unik ID. Den andre kolonnen er Survival; en binær variabel som indikerer om passasjeren overlevde (1) eller ikke (0). Tredje kolonne er Pclass som forteller hvilken klasse passasjeren var på. Fjerde kolonne, Name, viser navnene til hver enkelt passasjer. Kolonne fem, Sex, er en kategorisk variabel som betegner kjønnet til passasjeren. Den sjette kolonnen, Age, er en kontinuerlig variabel som gir alderen til passasjeren. Kolonne sju, SibSp, er en variabel som viser antallet søsken eller ektefeller ombord på Titanic. Kolonne åtte, Parch viser antallet foreldre eller barn ombord.Nienede kolonne, Ticket, viser bilettnummeret til passasjeren Tiende kolonne, Fare, betegner prisen passasjeren brukte på biletten. Kolonne elleve, Cabin, er lugarnummeret til passasjeren. Embarked, den tolvte kolonnen er en kategorisk variabel som viser hvor passasjeren gikk på.
 
 Kilde: (Kaggle)
 
@@ -81,6 +56,8 @@ Parch og Sibsp er en ganske interessante variabler. Kan det være noe sammenheng
 
 PassengerId vikrer ikke veldig relevant, den virker litt mer som en variabel for å kunne referere til passasjer og den har nok mest sannsynlig ikke noe å gjøre med overlevelsen.
 
+(Trenger vi denne gjennomgangen?)
+
 *Inspirasjon (Allohvk)*
 
 ## Utforsking av dataen
@@ -90,10 +67,14 @@ PassengerId vikrer ikke veldig relevant, den virker litt mer som en variabel for
 Bruker skim fra pakken skimr for å få en oversikt over dataen:
 
 ```{r}
-skimr::skim(Titanic)
+skimr::skim(titanic)
 ```
 
 Her får vi vite at det 891 rander og at 5 av de tolv kolonnene er av typen "character". Det som er av mest interesse i outputen er kolonnen med "n_missing". Kolonnen "Cabin" har 687 manglende verdier. Det er rimelig å tenke seg at lugarnummeret ikke har så mye å si for overlevelsen, og at heller "Pclass" er viktigere for analysen. Med så mange manglende verdier blir det også vanskelig å lage nye variabler med hvilket dekk man var på. Da måtte man eventuelt gjort noen antagelser om at første klasse var på dekk A og B, men det blir jo nesten det samme som pclass og derfor ikke hensiktsmessig. Ettersom at datasettet ikker er så stort er det mer hensiktsmessig å fjerne hele kolonnen fremfor å fjerne alle randene med manglende verdier.
+
+Vetle:
+
+Vi bruker funksjonen skim fra skimr pakken for å skaffe en oversikt over dataen. Det mest interresante i utskriften er kolonnen "n_missing" som viser hvor mange manglende verdier det er per variabel. Dersom vi ser på variabelen "Cabin" ser vi at den har 687 manglende verdier. Det er rimelig å anta at selve lugarnummeret ikke er så viktig for å predikere overlevelse, og at variabler som Pclass da vil være til større hjelp. Dersom man hadde gjort noen antagelser om hvordan dekkene var organisert kunne en brukt for eksempel Pclass og Fare til å forsøke å estimere lugarnummeret, men ettersom dette vil bli noe upresist og kunne resultert i uheldige utslag på prediksjonene - som følge av et lite datasett - velger vi istedenfor å bare fjerne hele variabelen.
 
 ```{r}
 titanic <- titanic |> 
@@ -102,71 +83,82 @@ titanic <- titanic |>
 
 Alder er også en variabel som mangler 177. Denne kolonnen er litt mer problematisk. Som drøftet ovenfor kan man tenke seg at alder har mye å si for analysen. Datasettet er lite så det blir dumt å fjerne disse radene. En muligheter er å kunne fylle disse verdiene med gjennomsnittsalderen. En annen metode som blir diskutert i denne artikkelen til *Allohvk* er å se på tittler og klasser for og imputere gjennomsnittsalderne(Allohvk).
 
-```{r}
-master.median <- list()
-mr.median <- list()
-mrs.median <- list()
-miss.median <- list()
+Variabelen Age mangler 177 verdier, noe som kan være problematisk ettersom vi tenker at alder kan være viktig en viktig indikator for om noen overlevde eller ikke. Siden datasettet ikke er så stort velger vi å forsøke å fylle de manglende verdiene med gjennomsnittsalderen til passasjerer som deler tittel, og reiser med samme klasse (Pclass). Ved å dele inn etter både tittel og klasse forsøker vi å unngå at for mange observasjoner får den samme alderen, noe som kan bidra til å påvirke presisjonen til modellene.
 
+```{r}
+#Lager lister til å fylle inn verdiene
+master.mean <- list() 
+mr.mean <- list()
+mrs.mean <- list()
+miss.mean <- list()
+
+
+#Setter opp en for-loop til å finne gjennomsnittet for alle med en gitt tittel, i en gitt klasse
 for (i in 1:3){
   for (j in c("Master", "Mr.", "Mrs.", "Miss")) {
     if (j == "Master"){
-      master.median[[i]] <- titanic |> 
-        filter(grepl("Master.", Name, fixed = TRUE), Pclass == i) |> 
-        summarise(median_age = median(Age, na.rm = TRUE)) |> 
-        pull(median_age)
+      master.mean[[i]] <- titanic |> 
+        filter(grepl("Master.", Name, fixed = TRUE), Pclass == i, Sex == "male") |> 
+        summarise(mean_age = mean(Age, na.rm = TRUE)) |> 
+        pull(mean_age)
     } else if(j == "Mr."){
-      mr.median[[i]] <- titanic |> 
-        filter(grepl("Mr.", Name, fixed = TRUE), Pclass == i) |> 
-        summarise(median_age = median(Age, na.rm = TRUE)) |> 
-        pull(median_age)
+      mr.mean[[i]] <- titanic |> 
+        filter(grepl("Mr.", Name, fixed = TRUE), Pclass == i, Sex == "male") |> 
+        summarise(mean_age = mean(Age, na.rm = TRUE)) |> 
+        pull(mean_age)
     } else if (j == "Mrs.") {
-      mrs.median[[i]] <- titanic |> 
-        filter(grepl("Mrs.", Name, fixed = TRUE), Pclass == i) |> 
-        summarise(median_age = median(Age, na.rm = TRUE)) |> 
-        pull(median_age)
+      mrs.mean[[i]] <- titanic |> 
+        filter(grepl("Mrs.", Name, fixed = TRUE), Pclass == i, Sex == "female") |> 
+        summarise(mean_age = mean(Age, na.rm = TRUE)) |> 
+        pull(mean_age)
     } else if(j == "Miss") {
-      miss.median[[i]] <- titanic |> 
-        filter(grepl("Miss.", Name, fixed = TRUE), Pclass == i) |> 
-        summarise(median_age = median(Age, na.rm = TRUE)) |> 
-        pull(median_age)
+      miss.mean[[i]] <- titanic |> 
+        filter(grepl("Miss.", Name, fixed = TRUE), Pclass == i, Sex == "female") |> 
+        summarise(mean_age = mean(Age, na.rm = TRUE)) |> 
+        pull(mean_age)
     }
   }
 }
 
+
+#Fyller inn de manglende verdiene
 for (i in 1:3){
   titanic <- titanic |> 
-    mutate(Age = ifelse(grepl("Mr.", Name, fixed = T) & Pclass == i & is.na(Age), mr.median[[i]], Age)) |> 
-    mutate(Age = ifelse(grepl("Miss", Name, fixed = T) & Pclass == i & is.na(Age), miss.median[[i]], Age)) |> 
-    mutate(Age = ifelse(grepl("Mrs.", Name, fixed = T) & Pclass == i & is.na(Age), mrs.median[[i]], Age)) |> 
-    mutate(Age = ifelse(grepl("Master", Name, fixed = T) & Pclass == i & is.na(Age), master.median[[i]], Age))
+    mutate(Age = ifelse(grepl("Mr.", Name, fixed = T) & Pclass == i & is.na(Age), mr.mean[[i]], Age)) |> 
+    mutate(Age = ifelse(grepl("Miss", Name, fixed = T) & Pclass == i & is.na(Age), miss.mean[[i]], Age)) |> 
+    mutate(Age = ifelse(grepl("Mrs.", Name, fixed = T) & Pclass == i & is.na(Age), mrs.mean[[i]], Age)) |> 
+    mutate(Age = ifelse(grepl("Master", Name, fixed = T) & Pclass == i & is.na(Age), master.mean[[i]], Age))
 }
 
-titanic |> 
-  filter(is.na(Age))
 
 ```
 
-Vi imputerer de manglende veridene ved å ta utgangspunkt i tittel - Master, Mr. , Mrs. , Miss. - og finner gjennomsnittsalderen for klassen de tilhører, og imputerer dette i datasettet. Vi ser at det fremdeles er en mangelnde verdi, som vi imputerer med gjennomsnittsalderen for klassen og personens tittel.
+Vi fyller inn de manglende verdiene ved å ta utgangspunkt i tittelene - Master, Mr. , Mrs. , Miss. - og finner gjennomsnittsalderen for klassen de tilhører, og fyller dette inn i datasettet. Ettersom det eksisterer flere titler som vi ikke dekket sjekker vi om vi finner flere manglende verdier, og forsøker samme metode for å sette inn verdiene.
 
 ```{r}
+#Sjekker om det er fler manglende verider
+titanic |> 
+  filter(is.na(Age))
+
+#Finner gjennomsnittet for tittel gitt klasse
 mean.dr.p1 <- titanic |> 
   filter(grepl("Dr.", Name, fixed = TRUE) & Pclass == 1) |> 
   summarise(round(mean(Age, na.rm = TRUE))) |> 
   pull()
 
+#Setter inn for verdien
 titanic <- titanic |> 
   mutate(Age = ifelse(is.na(Age), mean.dr.p1, Age))
 ```
 
-Nå har vi kun 2 manglende verdier for embarked. Det burde nok gå greit å fjerne dem, men vi kan også prøve å utforske dataen før vi gjør det.
+Fra utskriftet til skimr funksjonen ser vi at det nå kun mangler 2 verdier for variabelen Embarked. Vi undersøker disse nærmere:
 
 ```{r}
 titanic |> 
   filter(is.na(Embarked))
 ```
 
-Det er her snakk om to kvinner som begge overlevde og var i første klasse. Datasette er ikke kjempe stort og det ville vært dumt å skulle miste rader med folk som overlevde, fordi det er denne verdien vi ønsker å predikere. Vi kan utforske litt mer:
+Vi ser at de manglende verdiene er for to kvinner, som begge overlevde, og som reiste med første klasse. For å opprettholde variasjonen i datasettet, og bevare flest mulig av observasjonene vi ønsker å predikere, vil vi forsøke å beholde observasjonene ved å fylle inn en verdi for Embarked.
 
 ```{r}
 titanic |> 
@@ -176,6 +168,8 @@ titanic |>
 ```
 
 Det vi kan tolke fra output er at de fleste kvinner som er i førseklasse overlevde, uavhengig av hvor de kom ombord. Derfor tenker vi det er rimelig å fylle de manglende verdiene med tilfeldig trekk mellom "C" og "S", ettersom at de er de verdien som er mest sannsylige.
+
+Det vi kan tolke fra utskriften er at de fleste kvinnene som reiste med førsteklasse overlevde, uavhengig av hvor de gikk ombord. Det vil derfor være rimelig å fylle de manglende verdiene med et tilfeldig trekk mellom "C" og "S", ettersom disse var de vanligste stedene å gå ombord.
 
 ```{r}
 tilfeldig_embarked <- sample(c("C", "S"), size = 1)
@@ -192,13 +186,15 @@ paste("Det er",sum(is.na(titanic)), "NAs datasettet")
 
 Nå som vi har bearbeidet datarammen har vi lyst til å utforske dataen litt mer. Dette gjør vi for å få en bedre forståelse for ulike sammenhenger i dataen.
 
+Når vi nå har bearbeidet dataene ønsker vi å utforske de ytterligere, for å få et bedre inntrykk av sammenhengene i dataene.
+
 ```{r}
 titanic |> 
   group_by(Survived) |> 
   summarise(Antall = n())
 ```
 
-I følge dataen vi har er det kun 342 person som overlevde, mens det var 549 som ikke gjorde det. Har dette noe å si for f.eks. Pclass.
+Vi ser her at det kun er 342 passasjerer som overlevde, og at det var 549 passasjerer som omkom. Vi ønsker først å se på hvordan antall overlevende fordeler seg på klassen de reiste med.
 
 ```{r}
 titanic |> 
@@ -210,13 +206,12 @@ titanic |>
   facet_wrap(vars(Pclass))
 ```
 
-Antallet som overlevde ser ut til å være ganske likt mellom klassene. Det er nok mer interesant å se på ovelevelsen som en andel av antallet.
+Antallet overlevende ser ut til å være ganske likt mellom klassene. Å se på andelen overlevende fordelt på klasse kan derfor gi et bedre inntrykk.
 
 ```{r}
 titanic |> 
   group_by(Pclass) |> 
   summarise(Overlevelsesandel = sum(Survived)/n())
-
 ```
 
 Her får vi et tydligere bilde over overlevelse og hvilken klasse du er i. Vi ser at andel som overlevde blir betraktlig større desto høyre klasse klasse man er i. Kan kjønn ha noe betydning?
@@ -439,10 +434,10 @@ library(cvms)
 prediksjoner_lasso <- predict(lasso_fit, titanic_test) |> 
   bind_cols(titanic_test)
 
-feilmatrise_lasso <- prediksjoner_lasso |> 
+forvirringsmatrise_lasso <- prediksjoner_lasso |> 
   conf_mat(Survived, .pred_class)
 
-riktigmatrise_lasso <- as.tibble(feilmatrise_lasso$table) |> 
+riktigmatrise_lasso <- as.tibble(forvirringsmatrise_lasso$table) |> 
   mutate(Prediction = ifelse(Prediction == 0, "Not survived", "Survived")) |> 
   mutate(Truth = ifelse(Truth == 0, "Not survived", "Survived"))
 
@@ -559,10 +554,10 @@ rf_fit |>
 prediksjoner_rf <- predict(rf_fit, titanic_test) |> 
   bind_cols(titanic_test)
 
-feilmatrise_rf <- prediksjoner_rf |> 
+forvirringsmatrise_rf <- prediksjoner_rf |> 
   conf_mat(Survived, .pred_class)
 
-riktigmatrise_rf <- as.tibble(feilmatrise_rf$table) |> 
+riktigmatrise_rf <- as.tibble(forvirringsmatrise_rf$table) |> 
   mutate(Prediction = ifelse(Prediction == 0, "Not survived", "Survived")) |> 
   mutate(Truth = ifelse(Truth == 0, "Not survived", "Survived"))
 
@@ -702,10 +697,10 @@ decision_fit |>
 prediksjoner_decision <- predict(decision_fit, titanic_test) |> 
   bind_cols(titanic_test)
 
-feilmatrise_decision <- prediksjoner_decision |> 
+forvirringsmatrise_decision <- prediksjoner_decision |> 
   conf_mat(Survived, .pred_class)
 
-riktigmatrise_decision <- as.tibble(feilmatrise_decision$table) |> 
+riktigmatrise_decision <- as.tibble(forvirringsmatrise_decision$table) |> 
   mutate(Prediction = ifelse(Prediction == 0, "Not survived", "Survived")) |> 
   mutate(Truth = ifelse(Truth == 0, "Not survived", "Survived"))
 
@@ -749,7 +744,7 @@ xg_grid <- grid_latin_hypercube(
   min_n(),
   loss_reduction(),
   sample_size = sample_prop(),
-  size = 100
+  size = 50
 )
  
 doParallel::registerDoParallel()
@@ -816,10 +811,10 @@ xg_fit |>
 prediksjoner_xg <- predict(xg_fit, titanic_test) |> 
   bind_cols(titanic_test)
 
-feilmatrise_xg <- prediksjoner_xg |> 
+forvirringsmatrise_xg <- prediksjoner_xg |> 
   conf_mat(Survived, .pred_class)
 
-riktigmatrise_xg <- as.tibble(feilmatrise_xg$table) |> 
+riktigmatrise_xg <- as.tibble(forvirringsmatrise_xg$table) |> 
   mutate(Prediction = ifelse(Prediction == 0, "Not survived", "Survived")) |> 
   mutate(Truth = ifelse(Truth == 0, "Not survived", "Survived"))
 
@@ -829,7 +824,117 @@ plot_confusion_matrix(riktigmatrise_xg, "Prediction", "Truth", "n",
                       add_col_percentages = F) +
   xlab("Faktisk") +
   ylab("Predikert") +
-  ggtitle("Feilmatrise XGboost")
+  ggtitle("forvirringsmatrise XGboost")
+
+```
+
+### MLP
+
+Starter med å definere modell, og lage en workflow.
+
+```{r}
+mlp.model <- mlp(hidden_units = tune(), penalty = tune(), epochs = tune()) |> 
+  set_engine("nnet") |> 
+  set_mode("classification")
+
+mlp_wflow <- workflow() |> 
+  add_model(mlp.model) |> 
+  add_recipe(titanic_recipe)
+
+```
+
+Henter så ut hyperparameterne og implempenterer de i en grid ved hjelp av grid_latin_hypercube med 50 nivåer
+
+```{r}
+mlp_params <- extract_parameter_set_dials(mlp_wflow)
+meterics <- metric_set(roc_auc, accuracy, brier_class)
+
+grid <- grid_latin_hypercube(
+  mlp_params,
+  size = 50
+)
+
+doParallel::registerDoParallel()
+
+mlp_tune <- tune_grid(
+  mlp_wflow, 
+  resamples = folds, 
+  grid = grid,
+  metrics = meterics,
+  control = control_grid(save_pred = TRUE)
+)
+
+```
+
+Henter deretter ut de beste parameterne, og tilpasser modellen
+
+```{r}
+logistic_param.reg <- select_best(mlp_tune, metric = "roc_auc") |>
+  select(-.config)
+
+fn.mlp_wflow <- mlp_wflow |> 
+  finalize_workflow(logistic_param.reg)
+
+fn.mlp_fit <- fn.mlp_wflow |> 
+  fit(titanic_train)
+```
+
+Kjører prediksjoner, og plotter ROC-AUC.
+
+```{r}
+
+auc_mlp <- 
+  predict(fn.mlp_fit, titanic_test, type = "prob") |> 
+  bind_cols(titanic_test) |> 
+  roc_auc(Survived, .pred_0) |> 
+  pull(.estimate)
+
+mlp_roc <- predict(fn.mlp_fit, titanic_test, type = "prob") |> 
+  bind_cols(titanic_test) |> 
+  roc_curve(Survived, .pred_0) 
+
+mlp_roc |> 
+   ggplot(aes(x = 1 - specificity, y = sensitivity)) + 
+  geom_path(col = "blue") +
+  geom_abline(slope = 1, linetype = "dashed") +
+  coord_equal()+
+  annotate("text", x = 0.6, y = 0.1, 
+           label = paste("AUC =", round(auc_mlp, 3) ), size = 5) +
+  theme_bw() +
+  ggtitle("ROC-Kurve")
+
+```
+
+```{r}
+fn.mlp_fit |> 
+  extract_fit_parsnip() |> 
+  vip::vi() |> 
+  ggplot(aes(y = reorder(Variable, Importance), x = Importance, fill = "#F8766D")) +
+  geom_col() +
+  theme(legend.position = "none") + 
+  ggtitle("Viktigheten av ulike variabler Multi Layer percepton") +
+  xlab("Betydning") +
+  ylab("Variabler")
+```
+
+```{r}
+prediksjoner_mlp <- predict(fn.mlp_fit, titanic_test) |> 
+  bind_cols(titanic_test)
+
+forvirringsmatrise_xg <- prediksjoner_xg |> 
+  conf_mat(Survived, .pred_class)
+
+riktigmatrise_xg <- as.tibble(forvirringsmatrise_xg$table) |> 
+  mutate(Prediction = ifelse(Prediction == 0, "Not survived", "Survived")) |> 
+  mutate(Truth = ifelse(Truth == 0, "Not survived", "Survived"))
+
+plot_confusion_matrix(riktigmatrise_xg, "Prediction", "Truth", "n", 
+                      add_normalized = F,
+                      add_row_percentages = F,
+                      add_col_percentages = F) +
+  xlab("Faktisk") +
+  ylab("Predikert") +
+  ggtitle("Forvirringsmatrise Multi-Layer Percepton")
 
 ```
 

@@ -2,6 +2,7 @@
 title: "Prosjekt"
 format: html
 editor: visual
+---s
 ---
 
 # Titanic katastrofen- ECON 3170
@@ -438,7 +439,7 @@ plot_confusion_matrix(riktigmatrise_lasso, "Prediction", "Truth", "n",
                       add_col_percentages = F) +
   xlab("Faktisk") +
   ylab("Predikert") +
-  ggtitle("Feilmatrise Lasso")
+  ggtitle("Forvirringsmatrise Lasso")
 
 ```
 
@@ -558,7 +559,7 @@ plot_confusion_matrix(riktigmatrise_rf, "Prediction", "Truth", "n",
                       add_col_percentages = F) +
   xlab("Faktisk") +
   ylab("Predikert") +
-  ggtitle("Feilmatrise Random Forest")
+  ggtitle("Forvirringsmatrise Random Forest")
 
 ```
 
@@ -701,7 +702,7 @@ plot_confusion_matrix(riktigmatrise_decision, "Prediction", "Truth", "n",
                       add_col_percentages = F) +
   xlab("Faktisk") +
   ylab("Predikert") +
-  ggtitle("Feilmatrise Decision tree")
+  ggtitle("Forvirringsmatrise Decision tree")
 
 
 
@@ -735,7 +736,7 @@ xg_grid <- grid_latin_hypercube(
   min_n(),
   loss_reduction(),
   sample_size = sample_prop(),
-  size = 50
+  size = 100
 )
  
 doParallel::registerDoParallel()

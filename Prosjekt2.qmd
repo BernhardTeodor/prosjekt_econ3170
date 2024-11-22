@@ -296,9 +296,9 @@ Vi kan se av grafene at det i hovedsak er kjønn og hvilken klasse en tilhører 
 
 ## Nye variabler
 
-Vi ser at den kan være hensiktsmessig å formalisere noen av variablene, og lage nye variabler.
+Vi ser at den kan være hensiktsmessig å formalisere noen av variablene, og lage nye variabler. Dette kan forbedrer modellens ytelse, gjør resultatene lettere å forstå og kan gi ny innsikt.
 
-Vi velger å lage en dummy variabel for om man er mindreåring eller ikke, en for hvor stor familie personen reiser med, og antall personer per billett.
+Vi velger å lage en dummy variabel for om man er mindreåring eller ikke, en for hvor stor familie personen reiser med, og antall personer per billett. Inspirasjon hentet (Donges, 2018).
 
 ```{r}
 titanic <- titanic |> 
@@ -327,7 +327,7 @@ titanic_test <- testing(titanic_split)
 titanic_split
 ```
 
-Lager en recepie
+Lager en recepie:
 
 ```{r}
 titanic_recipe <- 
@@ -377,6 +377,8 @@ lasso_tune |>
 
 ```
 
+Vi setter opp lasso modellen og tuner den. Plottet viser hvordan accuracy og roc_auc utvikler seg for ulike verdier av lambda.
+
 ```{r}
 beste_lamda <- select_best(lasso_tune, metric = "roc_auc")
 beste_lamda
@@ -384,6 +386,8 @@ beste_lamda
 lasso_fit <- finalize_workflow(wflow_lasso, beste_lamda) |> 
   fit(data = titanic_train)
 ```
+
+Bruker den beste roc_auc verdien i modellen og tilpasser modellen med denne verdien.
 
 ```{r}
 predict(lasso_fit, titanic_test) |> 
@@ -414,6 +418,8 @@ lasso_roc |>
 
 
 ```
+
+Her er et plott som viser roc_auc til lasso modellen.
 
 ```{r}
 lasso_fit |> 
@@ -719,7 +725,6 @@ plot_confusion_matrix(riktigmatrise_decision, "Prediction", "Truth", "n",
 ### Xgboost
 
 ```{r}
-
 xg_model <- boost_tree(
   trees = 1000,
   tree_depth = tune(),
@@ -762,7 +767,6 @@ best_param_xg
 grid: https://juliasilge.com/blog/xgboost-tune-volleyball/, blir litt vanskelig å plotte
 
 ```{r}
-set.seed(3170)
 xg_fit <- finalize_workflow(xg_wflow, best_param_xg) |> 
   fit(titanic_train)
 
@@ -940,6 +944,8 @@ plot_confusion_matrix(riktigmatrise_xg, "Prediction", "Truth", "n",
 
 ## Kilder
 
--   Kaggle. *Titanic - Machine Learning from Disaster*. Kaggle. Hentet 1. november 2023 fra <https://www.kaggle.com/competitions/titanic>
+-   Kaggle. *Titanic - Machine Learning from Disaster*. Kaggle. Hentet 1. november 2024 fra <https://www.kaggle.com/competitions/titanic>
 
--   Allohvk. *Titanic - Advanced EDA*. Kaggle. Hentet 1. november 2023 fra <https://www.kaggle.com/code/allohvk/titanic-advanced-eda?scriptVersionId=77739368>
+-   Allohvk. *Titanic - Advanced EDA*. Kaggle. Hentet 1. november 2024 fra <https://www.kaggle.com/code/allohvk/titanic-advanced-eda?scriptVersionId=77739368>
+
+-   Donges, N. (2018). *Predicting the survival of Titanic passengers*. Towards Data Science. Hentet 4. november 2024 fra <https://towardsdatascience.com/predicting-the-survival-of-titanic-passengers-30870ccc7e8>

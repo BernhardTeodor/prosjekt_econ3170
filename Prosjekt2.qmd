@@ -8,24 +8,33 @@ editor: visual
 
 ## *Introduksjon*
 
-I denne oppgaven skal vi - ved hjelp av ulike maksinlæringsmodeller - forsøke å predikere om passasjerer på båten overlevde eller ikke. Datasettet er hentet fra "...", og oppgaven er inspirert av Kaggles maksinlæringskonkurranse. Vi innleder med å inspisere datasettet ved hjelp av plots for å forsøke å se sammenhengen mellom ulike variabler, og andelen overlevende. Videre vil vi forsøke å behandle manglende verdier, og tilpasse datasettet slik at det vil være enkelt å bruke i modellene. Vi vil så tilpasse parametere og hyperparametere for å forsøke å få så presise modeller som mulig. Til slutt vil vi implementere modellene i et dashboard hvor en kan finne overlevelsessansynlighet for en selvvalgt karakter.
+I denne oppgaven skal vi - ved hjelp av ulike maksinlæringsmodeller - forsøke å predikere om passasjerer på båten overlevde eller ikke. Datasettet er hentet fra kaggle, og oppgaven er inspirert av Kaggles maksinlæringskonkurranse (Kaggle). Vi innleder med å inspisere datasettet ved hjelp av plots for å forsøke å se sammenhengen mellom ulike variabler, og andelen overlevende. Videre vil vi forsøke å behandle manglende verdier, og tilpasse datasettet slik at det vil være enkelt å bruke i modellene. Vi vil så tilpasse parametere og hyperparametere for å forsøke å få så presise modeller som mulig. Til slutt vil vi implementere modellene i et dashboard hvor en kan finne overlevelsessansynlighet for en selvvalgt karakter.
 
 ## Pakker
 
 I prosjetet kommer vi hovedsaklig til å benytte oss av to pakker: tidyverse og tidymodels. Begge pakkene er samlinger av mange ulike pakker. Tidyverse skal vi hovedsaklig bruke til å manipulere data og visualisering. Tidymodels skal vi bruke til maskinlæring.
 
-```{r echo = T, results = 'hide'}
+```{r, message=FALSE}
 library(tidyverse) 
 library(tidymodels)
 ```
 
-## Data
-
-```{r echo = T, results = 'hide'}
-titanic <- read_csv("Titanic-Dataset.csv")
+```{r, include=FALSE}
+options(dplyr.summarise.inform = FALSE)
+options(readr.show_cols_spec= FALSE)
+options(readr.num_columns = 0)
 ```
 
-Datasettet bester av 12 kolonner. Her kommer en liten oversikt over hva de betyr:
+## Data
+
+```{r}
+titanic <- suppressMessages(read_csv("Titanic-Dataset.csv"))
+glimpse(titanic[1,])
+```
+
+#NOTE: "suppressMessages", for å unngå output melding.
+
+Datasettet består av 12 kolonner. Her kommer en liten oversikt over hva de betyr:
 
 -   Survival: Om vedkommende overlevde: 1 = Ja, 0 = Nei.
 
@@ -51,6 +60,8 @@ Datasettet bester av 12 kolonner. Her kommer en liten oversikt over hva de betyr
 
 -   PassengerId: Unike IDer til passasjerene
 
+Kilde: (Kaggle)
+
 ```{r}
 head(titanic)
 ```
@@ -69,7 +80,7 @@ Parch og Sibsp er en ganske interessante variabler. Kan det være noe sammenheng
 
 PassengerId vikrer ikke veldig relevant, den virker litt mer som en variabel for å kunne referere til passasjer og den har nok mest sannsynlig ikke noe å gjøre med overlevelsen.
 
-Inspirasjon: <https://www.kaggle.com/code/allohvk/titanic-advanced-eda?scriptVersionId=77739368>
+*Inspirasjon (Allohvk)*
 
 ## Utforsking av dataen
 
@@ -83,13 +94,12 @@ skimr::skim(Titanic)
 
 Her får vi vite at det 891 rander og at 5 av de tolv kolonnene er av typen "character". Det som er av mest interesse i outputen er kolonnen med "n_missing". Kolonnen "Cabin" har 687 manglende verdier. Det er rimelig å tenke seg at lugarnummeret ikke har så mye å si for overlevelsen, og at heller "Pclass" er viktigere for analysen. Med så mange manglende verdier blir det også vanskelig å lage nye variabler med hvilket dekk man var på. Da måtte man eventuelt gjort noen antagelser om at første klasse var på dekk A og B, men det blir jo nesten det samme som pclass og derfor ikke hensiktsmessig. Ettersom at datasettet ikker er så stort er det mer hensiktsmessig å fjerne hele kolonnen fremfor å fjerne alle randene med manglende verdier.
 
-```{r, include=FALSE}
-
+```{r}
 titanic <- titanic |> 
   select(-Cabin)
 ```
 
-Alder er også en variabel som mangler 177. Denne kolonnen er litt mer problematisk. Som drøftet ovenfor kan man tenke seg at alder har mye å si for analysen. Datasettet er lite så det blir dumt å fjerne disse radene. En muligheter er å kunne fylle disse verdiene med gjennomsnittsalderen. En annen metode som blir diskutert i denne artikkelen: <https://www.kaggle.com/code/allohvk/titanic-missing-age-imputation-tutorial-advanced>, er f.eks. å se på tittel som "Master" for å indentifisere unge gutter.
+Alder er også en variabel som mangler 177. Denne kolonnen er litt mer problematisk. Som drøftet ovenfor kan man tenke seg at alder har mye å si for analysen. Datasettet er lite så det blir dumt å fjerne disse radene. En muligheter er å kunne fylle disse verdiene med gjennomsnittsalderen. En annen metode som blir diskutert i denne artikkelen til *Allohvk* er å se på tittler og klasser for og imputere gjennomsnittsalderne(Allohvk).
 
 ```{r}
 master.median <- list()
@@ -146,7 +156,6 @@ mean.dr.p1 <- titanic |>
 
 titanic <- titanic |> 
   mutate(Age = ifelse(is.na(Age), mean.dr.p1, Age))
-
 ```
 
 Nå har vi kun 2 manglende verdier for embarked. Det burde nok gå greit å fjerne dem, men vi kan også prøve å utforske dataen før vi gjør det.
@@ -156,9 +165,9 @@ titanic |>
   filter(is.na(Embarked))
 ```
 
-Det er her snakk om to kvinner som begge overlevde og var i første klasse. Datasette er ikke kjempe stort og det ville vært dumt å skulle miste rader med folk som overlevde. Vi kan utforske litt mer.
+Det er her snakk om to kvinner som begge overlevde og var i første klasse. Datasette er ikke kjempe stort og det ville vært dumt å skulle miste rader med folk som overlevde, fordi det er denne verdien vi ønsker å predikere. Vi kan utforske litt mer:
 
-```{r, warning=FALSE}
+```{r}
 titanic |> 
   filter(Sex == "female" & Pclass == 1) |> 
   group_by(Embarked, Pclass) |>
@@ -174,6 +183,8 @@ titanic <- titanic |>
   mutate(Embarked = ifelse(is.na(Embarked),
                            yes = tilfeldig_embarked,
                            no = Embarked))
+
+paste("Det er",sum(is.na(titanic)), "NAs datasettet")
 ```
 
 ### Visualisering av data
@@ -184,7 +195,6 @@ Nå som vi har bearbeidet datarammen har vi lyst til å utforske dataen litt mer
 titanic |> 
   group_by(Survived) |> 
   summarise(Antall = n())
-
 ```
 
 I følge dataen vi har er det kun 342 person som overlevde, mens det var 549 som ikke gjorde det. Har dette noe å si for f.eks. Pclass.
@@ -194,6 +204,8 @@ titanic |>
   ggplot(aes(x = Survived, fill = as.factor(Survived))) +
   geom_bar() +
   ylab("Antall") +
+  labs(fill = "Survived")+
+  ggtitle("Overlevelse i klasser")
   facet_wrap(vars(Pclass))
 ```
 
@@ -254,11 +266,11 @@ Vi ser at det er en svak sammenheng mellom alder og overlevelse. Den laveste ove
 
 Hva med prisen hvor mye de betalte, har det noe å si for overlevelsen.
 
-```{r}
+```{r, message=FALSE}
 
 titanic |> 
   ggplot(aes(x = Fare)) +
-  geom_histogram()
+  geom_histogram(bins = 30)
 
 titanic |> 
   filter(Fare < 200) |> 
@@ -268,6 +280,7 @@ titanic |>
   summarise(andel = sum(Survived)/n()) |> 
   ggplot(aes(x = Fare_group, y = andel, fill = Fare_group)) + 
   geom_col() +
+  scale_fill_brewer(palette = "Set3") +
   facet_wrap(vars(Sex))
 ```
 
@@ -818,3 +831,9 @@ plot_confusion_matrix(riktigmatrise_xg, "Prediction", "Truth", "n",
   ggtitle("Feilmatrise XGboost")
 
 ```
+
+## Kilder
+
+-   Kaggle. *Titanic - Machine Learning from Disaster*. Kaggle. Hentet 1. november 2023 fra <https://www.kaggle.com/competitions/titanic>
+
+-   Allohvk. *Titanic - Advanced EDA*. Kaggle. Hentet 1. november 2023 fra <https://www.kaggle.com/code/allohvk/titanic-advanced-eda?scriptVersionId=77739368>

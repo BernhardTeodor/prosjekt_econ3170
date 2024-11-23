@@ -14,12 +14,12 @@ I denne oppgaven skal vi - ved hjelp av ulike maksinlæringsmodeller - forsøke 
 
 I prosjetet kommer vi hovedsaklig til å benytte oss av to pakker: tidyverse og tidymodels. Begge pakkene er samlinger av mange ulike pakker. Vi kommer i hovedsak til å bruke Tidyverse til manipulering og visualisering av data, og Tidymodels til maskinlæring.
 
-```{r, message=FALSE}
+```{r, message = FALSE}
 library(tidyverse) 
-library(tidymodels)
+library(tidymodels) 
 ```
 
-```{r, include=FALSE}
+```{r, include = FALSE}
 options(dplyr.summarise.inform = FALSE)
 options(readr.show_cols_spec= FALSE)
 options(readr.num_columns = 0)
@@ -202,7 +202,7 @@ titanic |>
   geom_bar() +
   ylab("Antall") +
   labs(fill = "Survived")+
-  ggtitle("Overlevelse i klasser")
+  ggtitle("Overlevelse i klasser") +
   facet_wrap(vars(Pclass))
 ```
 
@@ -374,7 +374,6 @@ lasso_tune |>
   ggtitle("Modellens prestasjon for ulike verdier av lambda")+
   xlab("Straff(lambda)") +
   ylab("Gjennomsnit")
-
 ```
 
 Vi setter opp lasso modellen og tuner den. Plottet viser hvordan accuracy og roc_auc utvikler seg for ulike verdier av lambda.
@@ -415,8 +414,6 @@ lasso_roc |>
            label = paste("AUC =", round(auc_lasso,3) ), size = 5) +
   theme_bw() +
   ggtitle("ROC-Kurve")
-
-
 ```
 
 Her er et plott som viser roc_auc til lasso modellen.
@@ -454,7 +451,6 @@ plot_confusion_matrix(riktigmatrise_lasso, "Prediction", "Truth", "n",
   xlab("Faktisk") +
   ylab("Predikert") +
   ggtitle("Forvirringsmatrise Lasso")
-
 ```
 
 Konklusjon: Lasso oser godt.
@@ -505,7 +501,6 @@ tune_rf |>
   geom_point() +
   labs(y = "AUC") +
   facet_wrap(vars(trees))
-
 ```
 
 Tune rf, er en flaskehals. Vet ikke helt hv avi skal gjøre for å gjøre den raskere. Likevel leverer den stor os
@@ -574,7 +569,6 @@ plot_confusion_matrix(riktigmatrise_rf, "Prediction", "Truth", "n",
   xlab("Faktisk") +
   ylab("Predikert") +
   ggtitle("Forvirringsmatrise Random Forest")
-
 ```
 
 ### Decision tree
@@ -623,7 +617,6 @@ tune_decision |>
   geom_point() +
   labs(y = "AUC") +
   facet_wrap(vars(tree_depth))
-
 ```
 
 Lar tidymodels ta seg av ranges på ulike parameterer. Noe som vi ikke gjorde for random forest eller lasso.
@@ -665,7 +658,6 @@ decision_roc|>
            label = paste("AUC =", round(auc_decision,3) ), size = 5) +
   theme_bw() +
   ggtitle("ROC-Kurve")
-
 ```
 
 ```{r}
@@ -695,7 +687,6 @@ decision_fit |>
   ggtitle("Viktigheten av ulike variabler decision tree") +
   xlab("Betydning") +
   ylab("Variabler")
-
 ```
 
 ```{r}
@@ -717,9 +708,6 @@ plot_confusion_matrix(riktigmatrise_decision, "Prediction", "Truth", "n",
   xlab("Faktisk") +
   ylab("Predikert") +
   ggtitle("Forvirringsmatrise Decision tree")
-
-
-
 ```
 
 ### Xgboost
@@ -795,7 +783,6 @@ xg_roc|>
            label = paste("AUC =", round(auc_xg,3) ), size = 5) +
   theme_bw() +
   ggtitle("ROC-Kurve")
-
 ```
 
 ```{r}
@@ -829,7 +816,6 @@ plot_confusion_matrix(riktigmatrise_xg, "Prediction", "Truth", "n",
   xlab("Faktisk") +
   ylab("Predikert") +
   ggtitle("forvirringsmatrise XGboost")
-
 ```
 
 ### MLP
@@ -844,7 +830,6 @@ mlp.model <- mlp(hidden_units = tune(), penalty = tune(), epochs = tune()) |>
 mlp_wflow <- workflow() |> 
   add_model(mlp.model) |> 
   add_recipe(titanic_recipe)
-
 ```
 
 Henter så ut hyperparameterne og implempenterer de i en grid ved hjelp av grid_latin_hypercube med 50 nivåer
@@ -867,7 +852,6 @@ mlp_tune <- tune_grid(
   metrics = meterics,
   control = control_grid(save_pred = TRUE)
 )
-
 ```
 
 Henter deretter ut de beste parameterne, og tilpasser modellen
@@ -906,14 +890,15 @@ mlp_roc |>
            label = paste("AUC =", round(auc_mlp, 3) ), size = 5) +
   theme_bw() +
   ggtitle("ROC-Kurve")
-
 ```
 
 ```{r}
+library(NeuralNetTools)
+
 fn.mlp_fit |> 
   extract_fit_parsnip() |> 
   vip::vi() |> 
-  ggplot(aes(y = reorder(Variable, Importance), x = Importance, fill = "#F8766D")) +
+  ggplot(aes(y = reorder(Variable, Importance), x = Importance, fill = "#F8766D"))+
   geom_col() +
   theme(legend.position = "none") + 
   ggtitle("Viktigheten av ulike variabler Multi Layer percepton") +
@@ -939,7 +924,6 @@ plot_confusion_matrix(riktigmatrise_xg, "Prediction", "Truth", "n",
   xlab("Faktisk") +
   ylab("Predikert") +
   ggtitle("Forvirringsmatrise Multi-Layer Percepton")
-
 ```
 
 ## Kilder

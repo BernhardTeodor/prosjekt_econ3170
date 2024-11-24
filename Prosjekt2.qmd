@@ -64,15 +64,9 @@ PassengerId vikrer ikke veldig relevant, den virker litt mer som en variabel for
 
 ### Behandling av manglende verdier(NA\`s)
 
-Bruker skim fra pakken skimr for å få en oversikt over dataen:
-
 ```{r}
 skimr::skim(titanic)
 ```
-
-Her får vi vite at det 891 rander og at 5 av de tolv kolonnene er av typen "character". Det som er av mest interesse i outputen er kolonnen med "n_missing". Kolonnen "Cabin" har 687 manglende verdier. Det er rimelig å tenke seg at lugarnummeret ikke har så mye å si for overlevelsen, og at heller "Pclass" er viktigere for analysen. Med så mange manglende verdier blir det også vanskelig å lage nye variabler med hvilket dekk man var på. Da måtte man eventuelt gjort noen antagelser om at første klasse var på dekk A og B, men det blir jo nesten det samme som pclass og derfor ikke hensiktsmessig. Ettersom at datasettet ikker er så stort er det mer hensiktsmessig å fjerne hele kolonnen fremfor å fjerne alle randene med manglende verdier.
-
-Vetle:
 
 Vi bruker funksjonen skim fra skimr pakken for å skaffe en oversikt over dataen. Det mest interresante i utskriften er kolonnen "n_missing" som viser hvor mange manglende verdier det er per variabel. Dersom vi ser på variabelen "Cabin" ser vi at den har 687 manglende verdier. Det er rimelig å anta at selve lugarnummeret ikke er så viktig for å predikere overlevelse, og at variabler som Pclass da vil være til større hjelp. Dersom man hadde gjort noen antagelser om hvordan dekkene var organisert kunne en brukt for eksempel Pclass og Fare til å forsøke å estimere lugarnummeret, men ettersom dette vil bli noe upresist og kunne resultert i uheldige utslag på prediksjonene - som følge av et lite datasett - velger vi istedenfor å bare fjerne hele variabelen.
 
@@ -81,9 +75,9 @@ titanic <- titanic |>
   select(-Cabin)
 ```
 
-Alder er også en variabel som mangler 177. Denne kolonnen er litt mer problematisk. Som drøftet ovenfor kan man tenke seg at alder har mye å si for analysen. Datasettet er lite så det blir dumt å fjerne disse radene. En muligheter er å kunne fylle disse verdiene med gjennomsnittsalderen. En annen metode som blir diskutert i denne artikkelen til *Allohvk* er å se på tittler og klasser for og imputere gjennomsnittsalderne(Allohvk).
-
 Variabelen Age mangler 177 verdier, noe som kan være problematisk ettersom vi tenker at alder kan være viktig en viktig indikator for om noen overlevde eller ikke. Siden datasettet ikke er så stort velger vi å forsøke å fylle de manglende verdiene med gjennomsnittsalderen til passasjerer som deler tittel, og reiser med samme klasse (Pclass). Ved å dele inn etter både tittel og klasse forsøker vi å unngå at for mange observasjoner får den samme alderen, noe som kan bidra til å påvirke presisjonen til modellene.
+
+Inspirasjonen er hentet fra artikkelen til *Allohvk*
 
 ```{r}
 #Lager lister til å fylle inn verdiene
@@ -133,7 +127,7 @@ for (i in 1:3){
 
 ```
 
-Vi fyller inn de manglende verdiene ved å ta utgangspunkt i tittelene - Master, Mr. , Mrs. , Miss. - og finner gjennomsnittsalderen for klassen de tilhører, og fyller dette inn i datasettet. Ettersom det eksisterer flere titler som vi ikke dekket sjekker vi om vi finner flere manglende verdier, og forsøker samme metode for å sette inn verdiene.
+Vi fyller inn de manglende verdiene ved å ta utgangspunkt i titlene - Master, Mr. , Mrs. , Miss. - og finner gjennomsnittsalderen for klassen de tilhører, og fyller dette inn i datasettet. Ettersom det eksisterer flere titler som vi ikke dekket sjekker vi om vi finner flere manglende verdier, og forsøker samme metode for å sette inn verdiene.
 
 ```{r}
 #Sjekker om det er fler manglende verider
@@ -151,7 +145,7 @@ titanic <- titanic |>
   mutate(Age = ifelse(is.na(Age), mean.dr.p1, Age))
 ```
 
-Fra utskriftet til skimr funksjonen ser vi at det nå kun mangler 2 verdier for variabelen Embarked. Vi undersøker disse nærmere:
+Fra utskriften til skimr funksjonen ser vi at det nå kun mangler 2 verdier for variabelen Embarked. Vi undersøker disse nærmere:
 
 ```{r}
 titanic |> 
@@ -166,8 +160,6 @@ titanic |>
   group_by(Embarked, Pclass) |>
   summarise(mean_survived = mean(Survived), antall = n())
 ```
-
-Det vi kan tolke fra output er at de fleste kvinner som er i førseklasse overlevde, uavhengig av hvor de kom ombord. Derfor tenker vi det er rimelig å fylle de manglende verdiene med tilfeldig trekk mellom "C" og "S", ettersom at de er de verdien som er mest sannsylige.
 
 Det vi kan tolke fra utskriften er at de fleste kvinnene som reiste med førsteklasse overlevde, uavhengig av hvor de gikk ombord. Det vil derfor være rimelig å fylle de manglende verdiene med et tilfeldig trekk mellom "C" og "S", ettersom disse var de vanligste stedene å gå ombord.
 
@@ -184,8 +176,6 @@ paste("Det er",sum(is.na(titanic)), "NAs datasettet")
 
 ### Visualisering av data
 
-Nå som vi har bearbeidet datarammen har vi lyst til å utforske dataen litt mer. Dette gjør vi for å få en bedre forståelse for ulike sammenhenger i dataen.
-
 Når vi nå har bearbeidet dataene ønsker vi å utforske de ytterligere, for å få et bedre inntrykk av sammenhengene i dataene.
 
 ```{r}
@@ -194,19 +184,7 @@ titanic |>
   summarise(Antall = n())
 ```
 
-Vi ser her at det kun er 342 passasjerer som overlevde, og at det var 549 passasjerer som omkom. Vi ønsker først å se på hvordan antall overlevende fordeler seg på klassen de reiste med.
-
-```{r}
-titanic |> 
-  ggplot(aes(x = Survived, fill = as.factor(Survived))) +
-  geom_bar() +
-  ylab("Antall") +
-  labs(fill = "Survived")+
-  ggtitle("Overlevelse i klasser") +
-  facet_wrap(vars(Pclass))
-```
-
-Antallet overlevende ser ut til å være ganske likt mellom klassene. Å se på andelen overlevende fordelt på klasse kan derfor gi et bedre inntrykk.
+Vi ser her at det kun er 342 passasjerer som overlevde, og at det var 549 passasjerer som omkom. Vi ønsker først å se på hvordan antall overlevende fordeler seg på klassen de reiste med. Antallet overlevende ser ut til å være ganske likt mellom klassene. Å se på andelen overlevende fordelt på klasse kan derfor gi et bedre inntrykk.
 
 ```{r}
 titanic |> 
@@ -214,7 +192,7 @@ titanic |>
   summarise(Overlevelsesandel = sum(Survived)/n())
 ```
 
-Her får vi et tydligere bilde over overlevelse og hvilken klasse du er i. Vi ser at andel som overlevde blir betraktlig større desto høyre klasse klasse man er i. Kan kjønn ha noe betydning?
+Vi ser av utskriften at andelen som overlevde er betydelig høyere for klasse 2 og 1 enn for klasse 2. Videre ønsker vi å undersøke betydningen til kjønn. Vi finner Overlevelsesandelen, fordelt på kjønn, fordelt på klasse.
 
 ```{r}
 library(tidyverse)
@@ -226,16 +204,20 @@ titanic |>
   geom_col(position = position_dodge()) +
   ylab("Andel som overlevde") +
   xlab("Klasse") +
-  ggtitle("Fordeling over andel, klasser og kjonn")
+  ggtitle("Figur 1.1 - Fordeling over andel, klasser og kjonn") +
+  scale_fill_brewer(palette = "Set1")
 ```
 
 Her ser vi at det er en tydelig sammenheng mellom klasse og kjønn for overlevelse. Det ser ut som at kvinner i første og andre klasse har realtivt stor sannsynlighet for å overleve. Kvinner i tredje klasse ligger på rundt femti prosent. Andelen menn som overlevde er betraktlig lavere i alle klasser samenlignet med kvinner. Andel menn som overlevde i andre og tredje klasse er omtrent halvparten av det den er i første klasse, likevel er det å være mann i første klasse "dårligere" enn å være kvinne i tredjeklasse med tanke på overlevelse. Det viser seg at kjønn har større påvirkning på overlevelse fremfor hvilken klasse du er i, dette stemmer jo overens med at kvinner og barn går først når det evakueres. Det er kanskje da naturlig å se på hvordan alder spiller en rolle.
+
+Av diagrammet kan en se at det er en markant forskjell på overlevelsesandelen for kvinner og menn, for alle klasser. En kan også se at observasjonen
 
 ```{r}
 titanic |> 
   ggplot(aes(x = Age, fill = Sex)) +
   geom_histogram() +
-  facet_wrap(vars(Survived))
+  facet_wrap(vars(Survived)) +
+  scale_fill_brewer(palette = "Set1")
 ```
 
 Det fremkomer ingen tydelelig sammenheng, vi deler inn i aldersgrupper, og ser på andelen overlevne i ulike aldersgrupper fordelt på kjønn
@@ -276,7 +258,7 @@ titanic |>
   summarise(andel = sum(Survived)/n()) |> 
   ggplot(aes(x = Fare_group, y = andel, fill = Fare_group)) + 
   geom_col() +
-  scale_fill_brewer(palette = "Set3") +
+  scale_fill_brewer(palette = "Set1") +
   facet_wrap(vars(Sex))
 ```
 

@@ -311,9 +311,10 @@ titanic <- titanic |>
          Minor = as.factor(Minor),
          Sex = as.factor(Sex),
          Embarked = as.factor(Embarked))
+
 ```
 
-## Maskinlæring
+# Maskinlæring
 
 Før vi tilpasser modellene vi ønsker å bruke, deler vi datasettet inn i trening og test sett. Dataene deles inn i en 80/20 fordeling hvor variabelen Survived skal være jevnt fordelt.
 
@@ -333,7 +334,7 @@ titanic_recipe <-
   step_dummy(Sex, Embarked, Alone, Pclass, Minor)
 ```
 
-### Lasso
+## LASSO
 
 Vi setter opp lasso modellen og tuner den. Plottet viser hvordan accuracy og roc_auc utvikler seg for ulike verdier av lambda.
 
@@ -447,7 +448,7 @@ plot_confusion_matrix(riktigmatrise_lasso, "Prediction", "Truth", "n",
   ggtitle("Forvirringsmatrise Lasso")
 ```
 
-### Random forest
+## Random forest
 
 Definerer modellen, lager en workflow med samme recipe, definerer en grid og tilpasser hyperparametere.
 
@@ -568,7 +569,7 @@ plot_confusion_matrix(riktigmatrise_rf, "Prediction", "Truth", "n",
   ggtitle("Forvirringsmatrise Random Forest")
 ```
 
-### Decision tree
+## Decision Tree
 
 Følger de samme prosedyrene som ved tidligere modeller
 
@@ -700,7 +701,7 @@ plot_confusion_matrix(riktigmatrise_decision, "Prediction", "Truth", "n",
   ggtitle("Forvirringsmatrise Decision tree")
 ```
 
-### Xgboost
+# Extreme Gradient Boosting Tree
 
 ```{r}
 xg_model <- boost_tree(
@@ -798,7 +799,7 @@ plot_confusion_matrix(riktigmatrise_xg, "Prediction", "Truth", "n",
   ggtitle("forvirringsmatrise XGboost")
 ```
 
-### MLP
+# Multi Layer Percepton
 
 Starter med å definere modell, og lage en workflow.
 
@@ -981,12 +982,24 @@ mlp_plot <- plot_roc_curve(mlp_roc, auc_mlp, "MLP")
 
 ```
 
-Vi ser her at modellene som gjør det best er LASSO, Random-Forest og XGboost, dette gir mening ettersom at
+# Evaluering
 
-## Kilder
+En ROC-AUC kurve viser forholdet mellom sann positiv og falsk positiv, og gir derfor et godt grunnlag for sammenlikning på tvers av modellene vi har valgt å bruke. (Kuhn, M. & Silge, J., 2023) Desto høyere areal det er imellom kurven og den stiplede linjen - lavere andel av falsk positiv - desto bedre presterer modellen.
+
+Vi ser at alle modellene presterer relativt bra, men at de beste modellene er LASSO-regresjon, Random Forest (RF) og Extreme Gradient Boosting Tree (XGB). Dette har sammenheng med at disse tre modellene bruker liknende metoder. LASSO er i hovedsak en regresjonsmodell som legger til en "penalty" altså en straff for å unngå at modellen overtilpasses og dermed fanger opp tilfeldig støy i dataen. RF lager flere ulike beslutningstrær ved å dele datasettet inn i flere ulike kombinasjoner - derav ensamblemodell. I binære klassifiseringsoppgaver bruker den det resultatet som flest trær gir. XGB kan sies å være en kombinasjon av disse modellene, fordi den bruker liknende metode som RF, ved å lage flere beslutningstrær som den bruker til å optimalisere tapsfunksjonen, i tillegg til å bruke samme regularisering som LASSO (L1) .
+
+De to siste modellene Desicion Tree (DT) og Multi-Layer Percepton (MLP) er to forksjellige modeller som presterer dårligere enn LASSO, RF, og XGB. Desicion Tree lager et beslutningstree av hele treningsettet, og oppretter ulike "grener" for å forsøke å klassifisere en observasjon. Dette gjør at modellen er lett å tolke, og det er enkelt å følge hvilke avveininger den gjør. Problemet med denne metoden er at den lett kan fange opp tilfeldig støy i dataen som gjør den sårbar for overtilpassning. MLP er på en annen side en mye mer kompleks modell som benytter seg av nevrale nettverk for å gjøre prediksjoner, dette gjør det mer komplisert å forstå hvilke faktorer som påvirker hverandre. På grunn av kompleksiteten til modellen krever den at tilpassingen av parameterne er utført nøye og riktig. Kravet til en nøyere tilpasning av parametere er trolig grunnen til at vår modell presterer dårligst, "grid-en" vi har satt opp er relativt simpel, og vi har benyttet oss av samme recipe som for de andre modellene, noe som kan gjøre at dataene er vanskeligere å behandle for modellen, som også gjør den mer upresis.
+
+# Konklusjon
+
+For å konkludere kan vi se at modellene som fungerer best er modeller som klarer å håndtere tilfeldig støy i datasettet godt. De to modellene som presterer høyest er ensemblemodeller, dette kan være fordi beslutningstrærne ikke blir like påvirket av de kontinuerlige variablene som Age og Fare, ettersom grenene i beslutningstrærne trolig vil gruppere disse selv i motsetning til LASSO som i større grad tar hensyn til de eksakte verdiene. XGB modellen presterer best, antagelig fordi denne også implementerer reguleringsmetoder som også brukes i lineære modeller.
+
+Vi har også benyttet oss av ressurser som forelesningsark, forelesningsnotater, og seminaroppgaver fra faget ECON3170
 
 -   Kaggle. *Titanic - Machine Learning from Disaster*. Kaggle. Hentet 1. november 2024 fra <https://www.kaggle.com/competitions/titanic>
 
 -   Allohvk. *Titanic - Advanced EDA*. Kaggle. Hentet 1. november 2024 fra <https://www.kaggle.com/code/allohvk/titanic-advanced-eda?scriptVersionId=77739368>
 
 -   Donges, N. (2018). *Predicting the survival of Titanic passengers*. Towards Data Science. Hentet 4. november 2024 fra <https://towardsdatascience.com/predicting-the-survival-of-titanic-passengers-30870ccc7e8>
+
+-   M, Kuhn. & J, Silge. *Tidy modelling with R*

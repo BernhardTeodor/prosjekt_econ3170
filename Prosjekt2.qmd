@@ -1,6 +1,6 @@
 ---
 title: "Prosjekt"
-format: html
+format: pdf
 editor: visual
 ---
 
@@ -192,6 +192,8 @@ titanic |>
   summarise(Overlevelsesandel = sum(Survived)/n())
 ```
 
+#### Kjønn og overlevlese
+
 Vi ser av utskriften at andelen som overlevde er betydelig høyere for klasse 2 og 1 enn for klasse 2. Videre ønsker vi å undersøke betydningen til kjønn. Vi finner Overlevelsesandelen, fordelt på kjønn, fordelt på klasse.
 
 ```{r}
@@ -208,47 +210,67 @@ titanic |>
   scale_fill_brewer(palette = "Set1")
 ```
 
-Her ser vi at det er en tydelig sammenheng mellom klasse og kjønn for overlevelse. Det ser ut som at kvinner i første og andre klasse har realtivt stor sannsynlighet for å overleve. Kvinner i tredje klasse ligger på rundt femti prosent. Andelen menn som overlevde er betraktlig lavere i alle klasser samenlignet med kvinner. Andel menn som overlevde i andre og tredje klasse er omtrent halvparten av det den er i første klasse, likevel er det å være mann i første klasse "dårligere" enn å være kvinne i tredjeklasse med tanke på overlevelse. Det viser seg at kjønn har større påvirkning på overlevelse fremfor hvilken klasse du er i, dette stemmer jo overens med at kvinner og barn går først når det evakueres. Det er kanskje da naturlig å se på hvordan alder spiller en rolle.
+Av diagrammet kan en se at det er en markant forskjell på overlevelsesandelen for kvinner og menn, for alle klasser. En kan også se at observasjonen fra utskriften også holder her, men at effekten er større for menn enn for kvinner. Vi ser at andelen for kvinner som overlevde i tredje klasse er større enn andelen for menn som overlevde i første klasse. Dette gir mening med tanke på at kvinner og barn var prioritert - "Kvinner og barn først". Vi ønsker derfor å se på hvordan alder, og kjønn fordeler seg på overlevelse.
 
-Av diagrammet kan en se at det er en markant forskjell på overlevelsesandelen for kvinner og menn, for alle klasser. En kan også se at observasjonen
+Vi plotter derfor et histogram som viser aldersfordelingen, og kjønnsfordelingen for døde og overlevende.
 
 ```{r}
 titanic |> 
   ggplot(aes(x = Age, fill = Sex)) +
   geom_histogram() +
   facet_wrap(vars(Survived)) +
-  scale_fill_brewer(palette = "Set1")
+  scale_fill_brewer(palette = "Set1") +
+  ggtitle("Figur 1.2 - Aldershistogram for overlevelse") +
+  xlab("Alder") +
+  ylab("Antall personer")
 ```
 
-Det fremkomer ingen tydelelig sammenheng, vi deler inn i aldersgrupper, og ser på andelen overlevne i ulike aldersgrupper fordelt på kjønn
+Histogrammet bekrefter de tidligere observasjonene. Vi ser at histogrammet for overlevende har en tyngre hale for Alder \< 18, noe som indikerer at det var en større overlevelse blant barn og unge. Dette styrker hypotesen om at kjønn og alder er tett korrelert med sannsynligheten for å overleve.
+
+For å vise denne effekten tydeligere deler vi inn i aldersgrupper
 
 ```{r}
+
+### Er dette et bedre plot? Viser det samme, men lettere å sammenlinge
+titanic |> 
+  mutate(
+    Agegroup = cut(
+     Age, 
+      breaks = c(-Inf,20, 30, 40, 50, 60, Inf), 
+     labels = c("0-19", "20-29", "30-39", "40-49", "50-59", "60+"))) |> 
+  group_by(Agegroup,Sex) |> 
+  summarise(Andel = sum(Survived)/n())|>
+  ggplot(aes(x = Agegroup, y = Andel, fill = Sex)) +
+  geom_col(position = "dodge") +
+  scale_fill_brewer(palette = "Set1") +  
+  xlab("Aldersgrupper") +
+  ylab("Andel overlevd") +
+  ggtitle("Figur 1.3 Andelen overlevne i ulike aldersgrupper, fordelt på kjønn")
+
 
 titanic |> 
   mutate(
     Agegroup = cut(
-      Age, 
-      breaks = c(-Inf,20, 30, 40, 50, 60, Inf), 
-      labels = c("0-20", "20-31", "31-40", "41-50", "51-60", "61+"))) |> 
+     Age, 
+      breaks = c(-Inf, 20, 30, 40, 50, 60, Inf), 
+     labels = c("0-19", "20-29", "30-39", "40-49", "50-59", "60+"))) |> 
   group_by(Agegroup,Sex) |> 
   summarise(Andel = sum(Survived)/n())|>
-  ggplot(aes(x = Agegroup, y= Andel, fill = Agegroup))+
-  geom_col() +
-  scale_fill_brewer(palette = "Set3") +  
+  ggplot(aes(x = Agegroup, y = Andel, fill = Agegroup)) +
+  geom_col(position = "dodge") +
+  scale_fill_brewer(palette = "Set1") +  
   xlab("Aldersgrupper") +
   ylab("Andel overlevd") +
   facet_wrap(vars(Sex))
 ```
 
-Vi ser at det er en svak sammenheng mellom alder og overlevelse. Den laveste overlevelsesraten er for menn i alderen 20-31, noe som gir menging ettersom disse trolig måtte vente lengst på redningsbåt. For kvinner er tendensen noe lik, men her er det heller ingen sterk sammenheng. Det er også viktig å nevne at sammenhengen vi ser kan være noe spuriøs. Her kan for eksempel Pclass være viktig.
+Vi ser her at tendensen fra tidligere - at kvinner i større grad overlever en menn - består. Vi ser at alder har en svak sammenheng med overlevelse, men at denne sammenhengen er ulik for kvinner og menn. For kvinner er det en stigende sammenheng, med unntak av aldersgrupper 41-50, som går litt ned. Grunnen for dette kan være at kvinner mellom 0 og 20, enten selv var barn - og dermed ble prioritert - eller at de var unge barnløse kvinner som hadde prioritet etter barn, og kvinner med barn slik at de trekker overlevelsesandelen ned. Kvinner i gruppen 41-50 kan , pågrunn av alder, antas å reise uten barn, og ble derfor nedprioritert til fordel for barn, kvinner med barn og eldre kvinner. For menn ser man at den høyeste overlevelsesraten er for menn mellom 0-20, noe som er plausibelt ettersom barn ble prioritet. Den laveste overlevelsesraten er for menn i alderen 20-31, videre kan en se at det ikke er særlig stor sammenheng mellom alder og overlevelse, men at det er en synkende tendens for aldre over 30.
 
-Hva med prisen hvor mye de betalte, har det noe å si for overlevelsen.
+#### Fare, Embarked og Overlevelse
+
+Videre ønsker vi å undersøke sammenhengen mellom prisen på billett, og overlevelse. Deler derfor variabelen fare inn i 6 grupper, og finner overlevelsesandelen per gruppe.
 
 ```{r, message=FALSE}
-
-titanic |> 
-  ggplot(aes(x = Fare)) +
-  geom_histogram(bins = 30)
 
 titanic |> 
   filter(Fare < 200) |> 
@@ -256,23 +278,33 @@ titanic |>
   mutate(Fare_group = factor(Fare_group, labels = c("Q1", "Q2", "Q3", "Q4", "Q5", "Q6"))) |> 
   group_by(Fare_group, Sex) |> 
   summarise(andel = sum(Survived)/n()) |> 
-  ggplot(aes(x = Fare_group, y = andel, fill = Fare_group)) + 
-  geom_col() +
+  ggplot(aes(x = Fare_group, y = andel, fill = Sex)) + 
+  geom_col(position = "dodge") +
   scale_fill_brewer(palette = "Set1") +
-  facet_wrap(vars(Sex))
+  xlab("Fare gruppe") +
+  ylab("Overlevelsesandel") +
+  ggtitle("Figur 2.1 - Overlevelsesandel for Fare gruppe delt på kjønn")
 ```
 
-Ettersom at fordlingen over hvor mye hver person betalte er høyrevridd har vi prøvd å dele dem inn i seks grupper, slik som for alder. Vi ser også at det er en del uteliggere, derfor har vi prøvd å filtrere disse bort. Det vi tolker fra grafene er at jo mer folk betalte for reisen desto større andel overlevde, spessielt hos menn. Funnet samsvarer også med grafen over at andelen menn i første klasse hadde en større andel overlevende. Tendensen er ikke like sterk hos kvinner. Noe som tyder på at det å være kvinner taler for at billettprisen har mindre betydning for dem enn det den har hos menn.
+Utvalget har noen uteliggende observasjoner som vi har fjernet for å få en tydeligere visualisering, vi deler så utvalget inn i seks ulike grupper, og viser overlevelsesratene for personene i de ulike Fare gruppene, og deler inn i kjønn. Vi ser av denne visualiseringen at det ikke er noe tydelig sammenheng for kvinner hva gjelder hvilken Fare gruppe de var i. For menn ser vi at det er en jevn økning i overlevelsesandelen når faregruppen øker.
+
+Til sist ønsker vi å se på hvordan overlevelsesandelen for passasjerene på de ulike ombordstigningene er.
 
 ```{r}
 titanic |> 
   group_by(Embarked, Pclass) |> 
   summarise(andel_overlevde = sum(Survived)/ n()) |> 
   ggplot(aes(x = Pclass, y = andel_overlevde, fill = Embarked )) +
-  geom_col(position = position_dodge())
+  geom_col(position = position_dodge()) +
+  scale_fill_brewer(palette = "Set1") +
+  ggtitle("Figur 2.2 - Overlevelsesandel for Embarked fordelt på Pclass") +
+  xlab("Klasse") +
+  ylab("Overlevelsesandel")
 ```
 
-Grafen viser ikke noe særlig sammenheng mellom hvor du gikk ombord og overlevelse. Dette gir gi også mening ettersom at, det egentlig ikke burde ha noe å si.
+Vi ser her at det ikke er noe tydelig mønster for overlevelsesandel, og hvor passasjerene gikk ombord. Dette er også rimelig med tanke på at hvor en gikk om bord trolig ikke påvirker ens sjanse til å overleve.
+
+#### Konklusjon fra datavisualisering
 
 Vi kan se av grafene at det i hovedsak er kjønn og hvilken klasse en tilhører som har sterkest sammenheng med overlevelsen. Vi ser at hvor mye biletten kostet har noe å si for overlevelse, men denne sammengen er sterkest for menn, og at hvor en gikk på ikke har så mye å si. Alder har mest å si for menn.
 
@@ -319,6 +351,8 @@ titanic_recipe <-
 
 ### Lasso
 
+Vi setter opp lasso modellen og tuner den. Plottet viser hvordan accuracy og roc_auc utvikler seg for ulike verdier av lambda.
+
 ```{r}
 lasso_model <- 
   logistic_reg(penalty = tune(), mixture = 1) |> 
@@ -358,7 +392,7 @@ lasso_tune |>
   ylab("Gjennomsnit")
 ```
 
-Vi setter opp lasso modellen og tuner den. Plottet viser hvordan accuracy og roc_auc utvikler seg for ulike verdier av lambda.
+Bruker den beste roc_auc verdien i modellen og tilpasser modellen med denne verdien.
 
 ```{r}
 beste_lamda <- select_best(lasso_tune, metric = "roc_auc")
@@ -366,9 +400,10 @@ beste_lamda
 
 lasso_fit <- finalize_workflow(wflow_lasso, beste_lamda) |> 
   fit(data = titanic_train)
+
 ```
 
-Bruker den beste roc_auc verdien i modellen og tilpasser modellen med denne verdien.
+Kjører prediksjoner med de nye parameterne
 
 ```{r}
 predict(lasso_fit, titanic_test) |> 
@@ -383,22 +418,13 @@ auc_lasso <-
   roc_auc(Survived, .pred_0) |> 
   pull(.estimate)
 
-lasso_roc <- predict(lasso_fit, titanic_test, type = "prob") |> 
+lasso_roc <- 
+  predict(lasso_fit, titanic_test, type = "prob") |> 
   bind_cols(titanic_test) |> 
   roc_curve(Survived, .pred_0)
-
-lasso_roc |>   
-  ggplot(aes(x = 1 - specificity, y = sensitivity)) + 
-  geom_path(col = "blue") +
-  geom_abline(slope = 1, linetype = "dashed") +
-  coord_equal()+
-  annotate("text", x = 0.6, y = 0.1, 
-           label = paste("AUC =", round(auc_lasso,3) ), size = 5) +
-  theme_bw() +
-  ggtitle("ROC-Kurve")
 ```
 
-Her er et plott som viser roc_auc til lasso modellen.
+Finner de hvilke variabler som er viktigst for modellen.
 
 ```{r}
 lasso_fit |> 
@@ -412,6 +438,8 @@ lasso_fit |>
   xlab("Betydning") +
   ylab("Variabler")
 ```
+
+Konstruerer en forvirringsmatrise med prediksjonene fra modellen
 
 ```{r}
 library(cvms)
@@ -435,9 +463,9 @@ plot_confusion_matrix(riktigmatrise_lasso, "Prediction", "Truth", "n",
   ggtitle("Forvirringsmatrise Lasso")
 ```
 
-Konklusjon: Lasso oser godt.
-
 ### Random forest
+
+Definerer modellen, lager en workflow med samme recipe, definerer en grid og tilpasser hyperparametere.
 
 ```{r}
 set.seed(3170)
@@ -485,7 +513,9 @@ tune_rf |>
   facet_wrap(vars(trees))
 ```
 
-Tune rf, er en flaskehals. Vet ikke helt hv avi skal gjøre for å gjøre den raskere. Likevel leverer den stor os
+Vi ser her hvilke kombinasjoner som gir høyest treffsikkerhet.
+
+Bruker resultatene fra tilpassingen til å trene modellen, og kjøre prediksjoner med den trente modellen.
 
 ```{r}
 set.seed(3170)
@@ -495,12 +525,16 @@ rf_fit <- finalize_workflow(rf_wflow, beste_mtry_min_tree) |>
   fit(titanic_train)
 
 
-predict(rf_fit, titanic_test) |> 
+pred.rf <- predict(rf_fit, titanic_test) |> 
   bind_cols(titanic_test) |> 
   accuracy(Survived, .pred_class)
+pred.rf
 ```
 
+Finner AUC og ROC for prediksjonen
+
 ```{r}
+
 auc_rf <- 
   predict(rf_fit, titanic_test, type = "prob") |> 
   bind_cols(titanic_test) |> 
@@ -510,16 +544,9 @@ auc_rf <-
 rf_roc <- predict(rf_fit, titanic_test, type = "prob") |> 
   bind_cols(titanic_test) |> 
   roc_curve(Survived, .pred_0) 
-
-rf_roc|>
-  ggplot(aes(x = 1 - specificity, y = sensitivity)) + 
-  geom_path(col = "blue") +
-  geom_abline(slope = 1, linetype = "dashed") +
-  coord_equal()+
-  annotate("text", x = 0.6, y = 0.1, label = paste("AUC =", round(auc_rf,3) ), size = 5) +
-  theme_bw() +
-  ggtitle("ROC-Kurve")
 ```
+
+Finner hvilke variabler som er viktige for prediksjonen
 
 ```{r}
 rf_fit |> 
@@ -532,6 +559,10 @@ rf_fit |>
   xlab("Betydning") +
   ylab("Variabler")
 ```
+
+Denne modellen trekker frem - i likhet med LASSO - at kjønn er viktigst for prediksjonen. I kontrast til LASSO vekter random forest modellen variabler som Fare og Age høyt, og bryr seg mindre om klassen til passasjeren.
+
+Konstruerer så en forvirringsmatrise for Random Forest modellen
 
 ```{r}
 prediksjoner_rf <- predict(rf_fit, titanic_test) |> 
@@ -554,6 +585,8 @@ plot_confusion_matrix(riktigmatrise_rf, "Prediction", "Truth", "n",
 ```
 
 ### Decision tree
+
+Følger de samme prosedyrene som ved tidligere modeller
 
 ```{r}
 
@@ -631,15 +664,6 @@ decision_roc <- predict(decision_fit, titanic_test, type = "prob") |>
   bind_cols(titanic_test) |> 
   roc_curve(Survived, .pred_0) 
 
-decision_roc|>
-  ggplot(aes(x = 1 - specificity, y = sensitivity)) + 
-  geom_path(col = "blue") +
-  geom_abline(slope = 1, linetype = "dashed") +
-  coord_equal()+
-  annotate("text", x = 0.6, y = 0.1, 
-           label = paste("AUC =", round(auc_decision,3) ), size = 5) +
-  theme_bw() +
-  ggtitle("ROC-Kurve")
 ```
 
 ```{r}
@@ -755,16 +779,6 @@ auc_xg <-
 xg_roc <- predict(xg_fit, titanic_test, type = "prob") |> 
   bind_cols(titanic_test) |> 
   roc_curve(Survived, .pred_0) 
-
-xg_roc|>
-  ggplot(aes(x = 1 - specificity, y = sensitivity)) + 
-  geom_path(col = "blue") +
-  geom_abline(slope = 1, linetype = "dashed") +
-  coord_equal()+
-  annotate("text", x = 0.6, y = 0.1, 
-           label = paste("AUC =", round(auc_xg,3) ), size = 5) +
-  theme_bw() +
-  ggtitle("ROC-Kurve")
 ```
 
 ```{r}
@@ -862,16 +876,6 @@ auc_mlp <-
 mlp_roc <- predict(fn.mlp_fit, titanic_test, type = "prob") |> 
   bind_cols(titanic_test) |> 
   roc_curve(Survived, .pred_0) 
-
-mlp_roc |> 
-   ggplot(aes(x = 1 - specificity, y = sensitivity)) + 
-  geom_path(col = "blue") +
-  geom_abline(slope = 1, linetype = "dashed") +
-  coord_equal()+
-  annotate("text", x = 0.6, y = 0.1, 
-           label = paste("AUC =", round(auc_mlp, 3) ), size = 5) +
-  theme_bw() +
-  ggtitle("ROC-Kurve")
 ```
 
 ```{r}
@@ -907,6 +911,95 @@ plot_confusion_matrix(riktigmatrise_xg, "Prediction", "Truth", "n",
   ylab("Predikert") +
   ggtitle("Forvirringsmatrise Multi-Layer Percepton")
 ```
+
+```{r}
+
+par(mfrow = c(4,2))
+
+lasso_roc |>   
+  ggplot(aes(x = 1 - specificity, y = sensitivity)) + 
+  geom_path(col = "blue") +
+  geom_abline(slope = 1, linetype = "dashed") +
+  coord_equal()+
+  annotate("text", x = 0.6, y = 0.1, 
+           label = paste("AUC =", round(auc_lasso,3) ), size = 5) +
+  theme_bw() +
+  ggtitle("ROC-Kurve")
+
+rf_roc|>
+  ggplot(aes(x = 1 - specificity, y = sensitivity)) + 
+  geom_path(col = "blue") +
+  geom_abline(slope = 1, linetype = "dashed") +
+  coord_equal()+
+  annotate("text", x = 0.6, y = 0.1, label = paste("AUC =", round(auc_rf,3) ), size = 5) +
+  theme_bw() +
+  ggtitle("ROC-Kurve")
+
+
+decision_roc|>
+  ggplot(aes(x = 1 - specificity, y = sensitivity)) + 
+  geom_path(col = "blue") +
+  geom_abline(slope = 1, linetype = "dashed") +
+  coord_equal()+
+  annotate("text", x = 0.6, y = 0.1, 
+           label = paste("AUC =", round(auc_decision,3) ), size = 5) +
+  theme_bw() +
+  ggtitle("ROC-Kurve")
+
+
+xg_roc|>
+  ggplot(aes(x = 1 - specificity, y = sensitivity)) + 
+  geom_path(col = "blue") +
+  geom_abline(slope = 1, linetype = "dashed") +
+  coord_equal()+
+  annotate("text", x = 0.6, y = 0.1, 
+           label = paste("AUC =", round(auc_xg,3) ), size = 5) +
+  theme_bw() +
+  ggtitle("ROC-Kurve")
+
+
+mlp_roc |> 
+   ggplot(aes(x = 1 - specificity, y = sensitivity)) + 
+  geom_path(col = "blue") +
+  geom_abline(slope = 1, linetype = "dashed") +
+  coord_equal()+
+  annotate("text", x = 0.6, y = 0.1, 
+           label = paste("AUC =", round(auc_mlp, 3) ), size = 5) +
+  theme_bw() +
+  ggtitle("ROC-Kurve")
+```
+
+```{r}
+library(patchwork)
+# Define a function to plot ROC curves
+plot_roc_curve <- function(roc_data, auc_value, title) {
+  roc_data |> 
+    ggplot(aes(x = 1 - specificity, y = sensitivity)) + 
+    geom_path(col = "blue") +
+    geom_abline(slope = 1, linetype = "dashed") +
+    coord_equal() +
+    annotate("text", x = 0.6, y = 0.1, 
+             label = paste("AUC =", round(auc_value, 3)), size = 5) +
+    theme_bw() +
+    ggtitle(title)
+}
+
+# Create individual plots
+lasso_plot <- plot_roc_curve(lasso_roc, auc_lasso, "LASSO")
+rf_plot <- plot_roc_curve(rf_roc, auc_rf, "Random Forest")
+decision_plot <- plot_roc_curve(decision_roc, auc_decision, "Decision Tree")
+xg_plot <- plot_roc_curve(xg_roc, auc_xg, "XGBoost")
+mlp_plot <- plot_roc_curve(mlp_roc, auc_mlp, "MLP")
+
+# Combine them into one figure in a single row
+(lasso_plot | rf_plot | xg_plot) / (decision_plot | mlp_plot) 
+
+# Display the combined plot
+
+
+```
+
+Vi ser her at modellene som gjør det best er LASSO, Random-Forest og XGboost, dette gir mening ettersom at
 
 ## Kilder
 

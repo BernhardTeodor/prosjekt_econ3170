@@ -193,7 +193,7 @@ titanic |>
   geom_col(position = position_dodge()) +
   ylab("Andel som overlevde") +
   xlab("Klasse") +
-  ggtitle("Figur 1.1 - Fordeling over andel, klasser og kjonn") +
+  ggtitle("Figur 1.1 - Fordeling over andel, klasser og kjønn") +
   scale_fill_brewer(palette = "Set1")
 ```
 

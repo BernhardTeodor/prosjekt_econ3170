@@ -231,7 +231,6 @@ For å vise denne effekten tydeligere deler vi inn i aldersgrupper
 
 ```{r}
 
-### Er dette et bedre plot? Viser det samme, men lettere å sammenlinge
 titanic |> 
   mutate(
     Agegroup = cut(
@@ -247,21 +246,6 @@ titanic |>
   ylab("Andel overlevd") +
   ggtitle("Figur 1.3 Andelen overlevne i ulike aldersgrupper, fordelt på kjønn")
 
-
-titanic |> 
-  mutate(
-    Agegroup = cut(
-     Age, 
-      breaks = c(-Inf, 20, 30, 40, 50, 60, Inf), 
-     labels = c("0-19", "20-29", "30-39", "40-49", "50-59", "60+"))) |> 
-  group_by(Agegroup,Sex) |> 
-  summarise(Andel = sum(Survived)/n())|>
-  ggplot(aes(x = Agegroup, y = Andel, fill = Agegroup)) +
-  geom_col(position = "dodge") +
-  scale_fill_brewer(palette = "Set1") +  
-  xlab("Aldersgrupper") +
-  ylab("Andel overlevd") +
-  facet_wrap(vars(Sex))
 ```
 
 Vi ser her at tendensen fra tidligere - at kvinner i større grad overlever en menn - består. Vi ser at alder har en svak sammenheng med overlevelse, men at denne sammenhengen er ulik for kvinner og menn. For kvinner er det en stigende sammenheng, med unntak av aldersgrupper 41-50, som går litt ned. Grunnen for dette kan være at kvinner mellom 0 og 20, enten selv var barn - og dermed ble prioritert - eller at de var unge barnløse kvinner som hadde prioritet etter barn, og kvinner med barn slik at de trekker overlevelsesandelen ned. Kvinner i gruppen 41-50 kan , pågrunn av alder, antas å reise uten barn, og ble derfor nedprioritert til fordel for barn, kvinner med barn og eldre kvinner. For menn ser man at den høyeste overlevelsesraten er for menn mellom 0-20, noe som er plausibelt ettersom barn ble prioritet. Den laveste overlevelsesraten er for menn i alderen 20-31, videre kan en se at det ikke er særlig stor sammenheng mellom alder og overlevelse, men at det er en synkende tendens for aldre over 30.
@@ -913,8 +897,6 @@ plot_confusion_matrix(riktigmatrise_xg, "Prediction", "Truth", "n",
 ```
 
 ```{r}
-
-par(mfrow = c(4,2))
 
 lasso_roc |>   
   ggplot(aes(x = 1 - specificity, y = sensitivity)) + 

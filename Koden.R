@@ -69,7 +69,7 @@ mean.dr.p1 <- titanic |>
 titanic <- titanic |> 
   mutate(Age = ifelse(is.na(Age), mean.dr.p1, Age))
 
-#Sjekker antal manglende verdier for Embarked
+#Sjekker antall manglende verdier for Embarked
 titanic |> 
   filter(is.na(Embarked))
 
@@ -117,7 +117,7 @@ titanic |>
   scale_fill_brewer(palette = "Set1") +
   ggtitle("Figur 1.2 - Aldershistogram for overlevelse") +
   xlab("Alder") +
-  ylab("Antall personer")
+  ylab("Antall personer") 
 
 #Plot for aldersgrupper og kjønn
 titanic |> 
@@ -147,7 +147,7 @@ titanic |>
   scale_fill_brewer(palette = "Set1") +
   xlab("Fare gruppe") +
   ylab("Overlevelsesandel") +
-  ggtitle("Figur 2.1 - Overlevelsesandel for Fare gruppe delt på kjønn")
+  ggtitle("Figur 1.4 - Overlevelsesandel for Fare gruppe delt på kjønn")
 
 #Plot for Fare gruppe og Pclass
 titanic |> 
@@ -156,7 +156,7 @@ titanic |>
   ggplot(aes(x = Pclass, y = andel_overlevde, fill = Embarked )) +
   geom_col(position = position_dodge()) +
   scale_fill_brewer(palette = "Set1") +
-  ggtitle("Figur 2.2 - Overlevelsesandel for Embarked fordelt på Pclass") +
+  ggtitle("Figur 1.5 - Overlevelsesandel for Embarked fordelt på Pclass") +
   xlab("Klasse") +
   ylab("Overlevelsesandel")
 
@@ -181,11 +181,12 @@ titanic_train <- training(titanic_split)
 titanic_test <- testing(titanic_split)
 titanic_split
 
-#Lager en recipe, og definerer modell
+#Lager en recipe
 titanic_recipe <- 
   recipe(Survived ~ ., data = titanic_train) |>
   step_dummy(Sex, Embarked, Alone, Pclass, Minor)
 
+# Definerer modell
 lasso_model <- 
   logistic_reg(penalty = tune(), mixture = 1) |> 
   set_engine("glmnet") |> 
@@ -207,19 +208,18 @@ lasso_tune <-
   wflow_lasso |> 
   tune_grid(resamples = folds, grid = penalty_grid)
 
+# hentet fra forelesning
 lasso_tune |>
   collect_metrics() |> 
-  filter(.metric != "brier_class") |> 
+  filter(.metric != "brier_class") |>  # utelukker brier, pener plott
   ggplot(aes(penalty, mean, color = .metric)) +
-  geom_errorbar(aes(
-    ymin = mean - std_err,
-    ymax = mean + std_err
-  )) +
-  geom_line(size = 1.5) +
+  geom_line(alpha = 0.5, size = 1.5) +
+  geom_point() +
   facet_wrap(~.metric, scales = "free", nrow = 2) +
   scale_x_log10() +
   theme(legend.position = "none") +
-  ggtitle("Modellens prestasjon for ulike verdier av lambda")+
+  scale_fill_brewer(palette = "Set1") +
+  ggtitle("Figur 2.1 - Modellens prestasjon for ulike verdier av lambda")+
   xlab("Straff(lambda)") +
   ylab("Gjennomsnit")
 
@@ -227,14 +227,14 @@ lasso_tune |>
 beste_lamda <- select_best(lasso_tune, metric = "roc_auc")
 beste_lamda
 
-lasso_fit <- finalize_workflow(wflow_lasso, beste_lamda) |> 
+#finalize workflow
+lasso_final_wf <- finalize_workflow(wflow_lasso, beste_lamda) 
+
+#deretter fitter
+lasso_fit <- lasso_final_wf|> 
   fit(data = titanic_train)
 
-#Kjører prediksjoner og finnner ROC og AUC verider
-predict(lasso_fit, titanic_test) |> 
-  bind_cols(titanic_test) |> 
-  accuracy(truth = Survived, estimate = .pred_class)
-
+#Kjører prediksjoner og finnner ROC og AUC verdier, skal brukes senere
 auc_lasso <- 
   predict(lasso_fit, titanic_test, type = "prob") |> 
   bind_cols(titanic_test) |> 
@@ -254,11 +254,12 @@ lasso_fit |>
              x = Importance, fill = Sign)) +
   geom_col() +
   theme() + 
-  ggtitle("Viktigheten av ulike variabler") +
+  ggtitle("Figur 2.2 -Viktigheten av ulike variabler") +
   xlab("Betydning") +
   ylab("Variabler")
 
-#Konstruerer forivrringsmatrise
+#Konstruerer forivrringsmatrise, bruker en pakke for å få en en pen matrise, librar(cvms)
+
 prediksjoner_lasso <- predict(lasso_fit, titanic_test) |> 
   bind_cols(titanic_test)
 
@@ -275,7 +276,7 @@ plot_confusion_matrix(riktigmatrise_lasso, "Prediction", "Truth", "n",
                       add_col_percentages = F) +
   xlab("Faktisk") +
   ylab("Predikert") +
-  ggtitle("Forvirringsmatrise Lasso")
+  ggtitle("Figur 2.3 - Forvirringsmatrise Lasso")
 
 #Bruker samme recipe, og følger samme fremgangsmåte for tilpassning av hyperparametere og trening av modell
 
@@ -311,6 +312,9 @@ tune_rf <- tune_grid(
   grid = rf_grid
 )
 
+# plottet over anrall trær, Ser samenhengen mellom mtry, min_n og Area under curve.
+# en visualisering av hvilket verdier vi har tenkt til å bruke.
+# plottet er insopirer av: https://juliasilge.com/blog/sf-trees-random-tuning/
 tune_rf |> 
   collect_metrics() |> 
   filter(.metric == "roc_auc") |> 
@@ -319,11 +323,15 @@ tune_rf |>
   geom_line(alpha = 0.5, size = 1.5) +
   geom_point() +
   labs(y = "AUC") +
+  ggtitle("Figur 2.4 - Tuning av parametere Random forest") +
   facet_wrap(vars(trees))
 
 beste_mtry_min_tree <- select_best(tune_rf, metric = "roc_auc")
+beste_mtry_min_tree
 
-rf_fit <- finalize_workflow(rf_wflow, beste_mtry_min_tree) |> 
+rf_final_wflow <- finalize_workflow(rf_wflow, beste_mtry_min_tree) 
+
+rf_fit <- rf_final_wflow|> 
   fit(titanic_train)
 
 
@@ -345,7 +353,7 @@ rf_fit |>
   ggplot(aes(y = reorder(Variable, Importance), x = Importance, fill = "#F8766D")) +
   geom_col() +
   theme(legend.position = "none") + 
-  ggtitle("Viktigheten av ulike variabler") +
+  ggtitle(" Figur 2.5 - Viktigheten av ulike variabler") +
   xlab("Betydning") +
   ylab("Variabler")
 
@@ -366,7 +374,7 @@ plot_confusion_matrix(riktigmatrise_rf, "Prediction", "Truth", "n",
                       add_col_percentages = F) +
   xlab("Faktisk") +
   ylab("Predikert") +
-  ggtitle("Forvirringsmatrise Random Forest")
+  ggtitle("Figur 2.6 - Forvirringsmatrise Random Forest")
 
 #Følger samme prosedyre for decicion tree som i de andre modellene, med unntak av range på parametere
 
@@ -376,7 +384,6 @@ decision_model <- decision_tree(
   min_n = tune()) |> 
   set_engine("rpart") |> 
   set_mode("classification")
-
 
 
 decision_wflow <- workflow() |> 
@@ -410,20 +417,18 @@ tune_decision |>
   ggplot(aes(cost_complexity, mean, color = min_n)) +
   geom_line(alpha = 0.5, size = 1.5) +
   geom_point() +
-  labs(y = "AUC") +
+  labs(y = "AUC") + 
+  ggtitle("Figur 2.7 - Tuning av parametere Decision tree") +
   facet_wrap(vars(tree_depth))
 
 #Finner beste parametere, implementerer de i modellen, og kjører prediksjoner
 best_cost_depth_min <- select_best(tune_decision, metric = "roc_auc")
 best_cost_depth_min
 
-decision_fit <- finalize_workflow(decision_wflow, best_cost_depth_min) |> 
+decision_final_wflow <- finalize_workflow(decision_wflow, best_cost_depth_min) 
+
+decision_fit <- decision_final_wflow|> 
   fit(titanic_train)
-
-
-predict(decision_fit, titanic_test) |> 
-  bind_cols(titanic_test) |> 
-  accuracy(Survived, .pred_class)
 
 
 #Finner ROC og AUC for prediksjonen
@@ -439,9 +444,10 @@ decision_roc <- predict(decision_fit, titanic_test, type = "prob") |>
 
 #For å bruke rpart-funksjonen må vi trene modellen på en annen måte.
 #Vi kunne ha brukt denne metodene med last_fit gjennom hele, men vi syntes det var greiere å kun jobbe med fit,
-#isteden for å bruke last_fit
+# isteden for å bruke last_fit.
+# Plotter hvordan modellen predikerer. 
 
-decision_final_fit <- finalize_workflow(decision_wflow, best_cost_depth_min) |> 
+decision_final_fit <- decision_final_wflow|> 
   last_fit(titanic_split)
 
 final_tree <- extract_workflow(decision_final_fit)
@@ -457,7 +463,7 @@ decision_fit |>
   ggplot(aes(y = reorder(Variable, Importance), x = Importance, fill = "#F8766D")) +
   geom_col() +
   theme(legend.position = "none") + 
-  ggtitle("Viktigheten av ulike variabler decision tree") +
+  ggtitle("Figur 2.8 - Viktigheten av ulike variabler decision tree") +
   xlab("Betydning") +
   ylab("Variabler")
 
@@ -478,10 +484,11 @@ plot_confusion_matrix(riktigmatrise_decision, "Prediction", "Truth", "n",
                       add_col_percentages = F) +
   xlab("Faktisk") +
   ylab("Predikert") +
-  ggtitle("Forvirringsmatrise Decision tree")
+  ggtitle("Figur 2.9 - Forvirringsmatrise Decision tree")
 
 #Definerer modellen, implementerer den i en workflow, 
 #og definerer en grid ved hjelp av funksjonen grid_latin_hypercube
+# Kilde: https://juliasilge.com/blog/xgboost-tune-volleyball/
 xg_model <- boost_tree(
   trees = 1000,
   tree_depth = tune(),
@@ -521,12 +528,11 @@ tune_xg <- tune_grid(
 best_param_xg <- select_best(tune_xg, metric = "roc_auc")
 best_param_xg
 
-xg_fit <- finalize_workflow(xg_wflow, best_param_xg) |> 
+xg_final_wflow <- finalize_workflow(xg_wflow, best_param_xg) 
+
+xg_fit <- xg_final_wflow|> 
   fit(titanic_train)
 
-predict(xg_fit, titanic_test) |> 
-  bind_cols(titanic_test) |> 
-  accuracy(Survived, .pred_class)
 
 #Finnner ROC og AUC for prediksjonene
 auc_xg <- 
@@ -546,7 +552,7 @@ xg_fit |>
   ggplot(aes(y = reorder(Variable, Importance), x = Importance, fill = "#F8766D")) +
   geom_col() +
   theme(legend.position = "none") + 
-  ggtitle("Viktigheten av ulike variabler decision tree") +
+  ggtitle("Figur 2.10 - Viktigheten av ulike variabler decision tree") +
   xlab("Betydning") +
   ylab("Variabler")
 
@@ -567,12 +573,15 @@ plot_confusion_matrix(riktigmatrise_xg, "Prediction", "Truth", "n",
                       add_col_percentages = F) +
   xlab("Faktisk") +
   ylab("Predikert") +
-  ggtitle("forvirringsmatrise XGboost")
+  ggtitle("Figur 2.11 - forvirringsmatrise XGboost")
 
 
 #Bruker lik metode som extreme-gradient boosting tree til å tilpasse parametere,
-#trene, og kjøre prediksjoner
-mlp.model <- mlp(hidden_units = tune(), penalty = tune(), epochs = tune()) |> 
+
+mlp_model <- mlp(
+  hidden_units = tune(), 
+  penalty = tune(), 
+  epochs = tune()) |> 
   set_engine("nnet") |> 
   set_mode("classification")
 
@@ -602,41 +611,40 @@ mlp_tune <- tune_grid(
 
 
 #Henter deretter ut de beste parameterne, og tilpasser modellen
-logistic_param.reg <- select_best(mlp_tune, metric = "roc_auc") |>
+beste_mlp_parametere <- select_best(mlp_tune, metric = "roc_auc") |>
   select(-.config)
+beste_mlp_parametere
 
-fn.mlp_wflow <- mlp_wflow |> 
-  finalize_workflow(logistic_param.reg)
+mlp_final_wflow <-  finalize_workflow(mlp_wflow, beste_mlp_parametere)
 
-fn.mlp_fit <- fn.mlp_wflow |> 
+mlp_fit <- mlp_final_wflow |> 
   fit(titanic_train)
-
 
 #Kjører prediksjoner, og plotter ROC-AUC.
 
 auc_mlp <- 
-  predict(fn.mlp_fit, titanic_test, type = "prob") |> 
+  predict(mlp_fit, titanic_test, type = "prob") |> 
   bind_cols(titanic_test) |> 
   roc_auc(Survived, .pred_0) |> 
   pull(.estimate)
 
-mlp_roc <- predict(fn.mlp_fit, titanic_test, type = "prob") |> 
+mlp_roc <- predict(mlp_fit, titanic_test, type = "prob") |> 
   bind_cols(titanic_test) |> 
   roc_curve(Survived, .pred_0) 
 
 #Plotter viktige varibler
-fn.mlp_fit |> 
+mlp_fit |> 
   extract_fit_parsnip() |> 
   vip::vi() |> 
   ggplot(aes(y = reorder(Variable, Importance), x = Importance, fill = "#F8766D"))+
   geom_col() +
   theme(legend.position = "none") + 
-  ggtitle("Viktigheten av ulike variabler Multi Layer percepton") +
+  ggtitle("Figur 2.12 - Viktigheten av ulike variabler Multi Layer percepton") +
   xlab("Betydning") +
   ylab("Variabler")
 
 #Konstruerer en forvirringsmatrise 
-prediksjoner_mlp <- predict(fn.mlp_fit, titanic_test) |> 
+prediksjoner_mlp <- predict(mlp_fit, titanic_test) |> 
   bind_cols(titanic_test)
 
 forvirringsmatrise_xg <- prediksjoner_xg |> 
@@ -652,7 +660,50 @@ plot_confusion_matrix(riktigmatrise_xg, "Prediction", "Truth", "n",
                       add_col_percentages = F) +
   xlab("Faktisk") +
   ylab("Predikert") +
-  ggtitle("Forvirringsmatrise Multi-Layer Percepton")
+  ggtitle("Figur 2.13 - Forvirringsmatrise Multi-Layer Percepton")
+
+
+
+#sammenlikne, her bruker vi last_fit for collect_metrics, 
+
+lasso_last <- lasso_final_wf |> 
+  last_fit(titanic_split) |> 
+  collect_metrics() |> 
+  mutate(type = "Lasso") 
+
+rf_last <- rf_final_wflow |> 
+  last_fit(titanic_split)|> 
+  collect_metrics() |> 
+  mutate(type = "Random forest") 
+
+decision_last <- decision_final_wflow |> 
+  last_fit(titanic_split) |> 
+  collect_metrics() |> 
+  mutate(type = "Decision tree") 
+
+xg_last <- xg_final_wflow |> 
+  last_fit(titanic_split) |> 
+  collect_metrics() |> 
+  mutate(type = "Xgboost") 
+
+mlp_last <- mlp_final_wflow |> 
+  last_fit(titanic_split) |> 
+  collect_metrics() |> 
+  mutate(type = "MLP") 
+
+alle_metrics <- lasso_last |> 
+  bind_rows(rf_last,
+            decision_last,
+            xg_last,
+            mlp_last)
+
+alle_metrics |> 
+  ggplot(aes(x = type, y = .estimate, fill = type)) +
+  geom_col() +
+  scale_fill_brewer(palette = "Set1") +
+  ggtitle("Figur 3.1 - Sammenligning av modellene") +
+  facet_wrap(vars(.metric))
+
 
 
 #Lager en funksjon for å lage plott
@@ -676,4 +727,30 @@ xg_plot <- plot_roc_curve(xg_roc, auc_xg, "XGBoost")
 mlp_plot <- plot_roc_curve(mlp_roc, auc_mlp, "MLP")
 
 #Viser plottene i samme figur
-(lasso_plot | rf_plot | xg_plot) / (decision_plot | mlp_plot) 
+(lasso_plot | rf_plot | xg_plot) / (decision_plot | mlp_plot) +
+  plot_annotation("Figur 3.2 - ROC-kurver for ulike modeller")
+
+
+# Plotte alle sammen
+alle_roc <- lasso_roc |>
+  mutate(type = "Lasso") |> 
+  bind_rows(
+    rf_roc |> mutate(type = "Random forest"),
+    decision_roc |> mutate(type = "Decision tree"),
+    xg_roc |> mutate(type = "XGboost"),
+    mlp_roc |> mutate(type = "Mlp"))
+
+alle_roc |> 
+  ggplot(aes(x = 1 - specificity, y = sensitivity, col = type)) + 
+  geom_path() +
+  geom_abline(slope = 1, linetype = "dashed") +
+  coord_equal() +
+  scale_fill_brewer(palette = "Set1") +
+  ggtitle("Figur 3.3 - Alle ROC-kurvene i samme plot")
+
+
+
+
+
+
+

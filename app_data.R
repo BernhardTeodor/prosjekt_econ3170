@@ -1,4 +1,5 @@
 library(tidyverse)
+library(tidymodels)
 
 titanic <- read_csv("Titanic-Dataset.csv")
 titanic <- titanic |> 

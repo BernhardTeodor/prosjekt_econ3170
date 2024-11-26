@@ -1,6 +1,6 @@
 library(shiny)
 
-source("app_data.r") # henter modell
+source("app_data.r") # henter en lasso-modell
 
 ui <- pageWithSidebar(
   headerPanel("Titanic overlevelseskalkulator"),
@@ -9,10 +9,9 @@ ui <- pageWithSidebar(
                 selectInput("Pclass", label = "Klasse", c("1", "2", "3")),
                 selectInput("Sex", label = "Kjønn", c("male", "female")),
                 selectInput("Fare", label = "Bilettpris", c("Lav", "Middels", "Høy")),
-                #sliderInput("Fare", label = "Bilettpris", min = 1, max = 500, value = 15),
                 selectInput("Embarked", label = "Gikk om bord", 
-                            c("S", "C", "Q")),
-                numericInput("family_size", label = "Familie", value = 1),
+                            c("Southampton", "Cherbourg", "Queenstown")),
+                numericInput("family_size", label = "Familiemedlemmer ombord", value = 1),
                 actionButton("submit", "Bekreft", class = "btn btn-primary")
                 
   ),
@@ -35,13 +34,16 @@ server <- function(input, output, session) {
       
       Age = input$Age,
       
-      #Fare = input$Fare,
       Fare = case_when(
         input$Fare == "Høy" ~ 31,
         input$Fare == "Middels" ~ 14.5,
         input$Fare == "Lav" ~ 7.5),
       
-      Embarked = as.factor(input$Embarked),
+      Embarked = case_when(
+        input$Embarked == "Southampton" ~ as.factor("S"),
+        input$Embarked == "Queenstown" ~ as.factor("Q"),
+        input$Embarked == "Cherbourg" ~ as.factor("C")
+        ),
       
       Person_per_ticket = input$family_size,
       
@@ -56,20 +58,14 @@ server <- function(input, output, session) {
   })
   output$prediction_output <- renderText({
     prob <- datasetInput()
-    if (!is.null(prob)) {
-      paste0("Probability of Survival: ", round(prob$.pred_1 * 100, 2), "%")
-    } else {
-      "Waiting for input..."
-    }
+    paste0("Sannsynligheten for overlevelse: ", round(prob$.pred_1 * 100, 2), "%")
   })
   
   output$prediction_details <- renderPrint({
     prediction <- datasetInput()
-    if (!is.null(prediction)) {
-      print(prediction)
-    }
+    print(prediction)
   })
-
+  
 }
 
 shinyApp(ui, server)
